@@ -1425,7 +1425,7 @@ def writeCp2k(inName,outName,atoms,a,b,c,isScaled,args,dire):
     elif((ext=='inp') or (ext=='restart')):
         writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire)
     else:
-        writeCp2kDefault(outName,atoms,a,b,c,isScaled,args,dire)
+        writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire)
     return
 
 def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
@@ -3422,7 +3422,7 @@ elif(args.cp2k_elastic_piezo):
     elastic_piezo_strain(args.input[0],args.output[0],atoms,a,b,c,isScaled,sysType,args)
 elif(args.cp2k_dielectric):
     dielectric_field(args.input[0],args.output[0],atoms,a,b,c,isScaled,sysType,args)
-elif(cp2k_elastic_piezo_get or cp2k_dielectric_get):
+elif(args.cp2k_elastic_piezo_get or args.cp2k_dielectric_get):
     get_tensors(inName,outName,atoms,a,b,c,isScaled,args)
 else:
     for outName in args.output:
