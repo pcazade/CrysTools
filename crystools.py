@@ -1864,8 +1864,7 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
     basename=outName.split('.')[0]
     for i in range(1,len(outName.split('.'))-1):
         basename=basename+'.'+outName.split('.')[i]
-    title='   PROJECT_NAME '+basename.strip()
-    fo.write('   PROJECT_NAME %s\n' % (title))
+    fo.write('   PROJECT_NAME %s\n' % (basename.strip()))
     fo.write('   RUN_TYPE  %s\n' % (args.cp2k_opt.strip()))
     fo.write(' &END GLOBAL\n')
     fo.write(' &MOTION\n')
