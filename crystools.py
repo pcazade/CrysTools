@@ -2351,8 +2351,8 @@ def strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
     ext=outName.split('.')[-1]
     basename=outName.split('.')[0]
 
-    cax=['a','b','c']
-    fax=['x','y','z']
+    cax=['a','b','c','al','be','ga']
+    fax=['x','y','z','yz','xz','xy']
     for s in args.strain_values:
         e=np.identity(3)
         if(args.strain_axis.strip()=='a' or args.strain_axis.strip()=='x'):
@@ -2361,10 +2361,17 @@ def strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
             e[1,1]+=s
         elif(args.strain_axis.strip()=='c' or args.strain_axis.strip()=='z'):
             e[2,2]+=s
+        elif(args.strain_axis.strip()=='al' or args.strain_axis.strip()=='yz'):
+            e[2,1]+=s
+        elif(args.strain_axis.strip()=='be' or args.strain_axis.strip()=='xz'):
+            e[2,0]+=s
+        elif(args.strain_axis.strip()=='ga' or args.strain_axis.strip()=='xy'):
+            e[1,0]+=s
         if(args.strain_axis.strip() in cax):
             hs=np.matmul(e,hmat) # abc axes, angles conserved
         elif(args.strain_axis.strip() in fax):
-            hs=np.matmul(hmat,e) # xyz axes, angles not conserved
+            te=np.transpose(e)
+            hs=np.matmul(hmat,te) # xyz axes, angles not conserved
         a.x=hs[0,0]
         a.y=hs[0,1]
         a.z=hs[0,2]
