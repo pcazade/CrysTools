@@ -1865,7 +1865,10 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
     for i in range(1,len(outName.split('.'))-1):
         basename=basename+'.'+outName.split('.')[i]
     fo.write('   PROJECT_NAME %s\n' % (basename.strip()))
-    fo.write('   RUN_TYPE  %s\n' % (args.cp2k_opt.strip()))
+    if(args.cp2k_opt.strip()=='CELL'):
+        fo.write('   RUN_TYPE  %s\n' % ('CELL_OPT'))
+    elif(args.cp2k_opt.strip()=='IONS'):
+        fo.write('   RUN_TYPE  %s\n' % ('GEO_OPT'))
     fo.write(' &END GLOBAL\n')
     fo.write(' &MOTION\n')
     if(args.cp2k_opt.strip()=='CELL'):
@@ -2043,7 +2046,7 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
         fo.write("%s %s\n" % ('     &KIND',el.strip()))
         basisSet='       BASIS_SET '+args.basisset.strip()+'-MOLOPT-SR-GTH-q'
         fo.write("%s%s\n" % (basisSet,kn[k]))
-        fo.write('       POTENTIAL GTH-%s-q%s' % (xc.strip(),kn[k]))
+        fo.write('       POTENTIAL GTH-%s-q%s\n' % (xc.strip(),kn[k]))
         fo.write("%s\n" % ('     &END KIND'))
     fo.write('   &END SUBSYS\n')
     fo.write('   &PRINT\n')
