@@ -1523,7 +1523,8 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
     eof = fi.tell()
     fi.seek(0,0)
     isSer=False
-    if(args.cp2k_opt_algo.strip()=='BFGS' and (len(atoms)>=1000)):
+    nAtoms=len(atoms)*math.ceil(18./a.norm)*math.ceil(18./b.norm)*math.ceil(18./c.norm)
+    if(args.cp2k_opt_algo.strip()=='BFGS' and (nAtoms>=1000)):
         args.cp2k_opt_algo='LBFGS'
     while (fi.tell() < eof):
         line=fi.readline()
@@ -1856,6 +1857,7 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
         bravais_lattice='CUBIC'
     else:
         bravais_lattice='NONE'
+    nAtoms=len(atoms)*math.ceil(18./a.norm)*math.ceil(18./b.norm)*math.ceil(18./c.norm)
     if(args.cp2k_opt_algo.strip()=='BFGS' and (len(atoms)>=1000)):
         args.cp2k_opt_algo='LBFGS'
     fo=open(outName,'w')
@@ -1996,7 +1998,7 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
     xc=args.exchange_correlation.strip()
     if(xc.strip()=='DEFAULT'):
         xc='PBE'
-    fo.write('         & %s T\n' % (xc))
+    fo.write('         &%s T\n' % (xc))
     fo.write('         &END %s\n' % (xc))
     fo.write('       &END XC_FUNCTIONAL\n')
     if(args.d3):
