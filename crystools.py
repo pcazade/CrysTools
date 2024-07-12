@@ -2312,7 +2312,9 @@ def elastic_piezo_strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
     hmat[2,1]=c.y
     hmat[2,2]=c.z
 
+    k=0
     for v in voigt:
+        k+=1
         for n in numDev:
             e=np.identity(3)
             e[v[0],v[1]]+=args.cp2k_elastic_piezo_step[0]
@@ -2327,7 +2329,7 @@ def elastic_piezo_strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
             c.x=hs[2,0]
             c.y=hs[2,1]
             c.z=hs[2,2]
-            fname=basename+'.strain_'+str(k+1)+'_'+str(int(n))+'.inp'
+            fname=basename+'.strain_'+str(k)+'_'+str(int(n))+'.inp'
             io_write(inName,fname,atoms,a,b,c,isScaled,sysType,args,None)
     return
 
