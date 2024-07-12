@@ -1421,7 +1421,7 @@ def readCry(fName):
 def writeCp2k(inName,outName,atoms,a,b,c,isScaled,args,dire):
     ext=inName.split('.')[-1]
     if(args.cp2k_template is not None):
-        writeCp2kTemplate(args.cp2k_template,outName,atoms,a,b,c,isScaled,args,dire)
+        writeCp2kTemplate(args.cp2k_template[0],outName,atoms,a,b,c,isScaled,args,dire)
     elif((ext=='inp') or (ext=='restart')):
         writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire)
     else:
@@ -1429,6 +1429,9 @@ def writeCp2k(inName,outName,atoms,a,b,c,isScaled,args,dire):
     return
 
 def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
+    lattice_list=['TRICLINIC','MONOCLINIC','MONOCLINIC_AB','MONOCLINIC_GAMMA_AB',
+                 'ORTHORHOMBIC','TETRAGONAL','TETRAGONAL_AB','TETRAGONAL_AC',
+                 'TETRAGONAL_BC','RHOMBOHEDRAL','HEXAGONAL','CUBIC','NONE']
     ks=['H','He','Li','Be','B','C','N','O','F','Ne','Na','Mg','Al','Si','P',
         'S','Cl','Ar','K','Ca','Sc','Ti','V','Cr','Mn','Fe','Co','Ni','Cu',
         'Zn','Ga','Ge','As','Se','Br','Kr','Rb','Sr','Y','Zr','Nb','Mo','Tc',
@@ -1524,8 +1527,8 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
     fi.seek(0,0)
     isSer=False
     nAtoms=len(atoms)*math.ceil(18./a.norm)*math.ceil(18./b.norm)*math.ceil(18./c.norm)
-    if(args.cp2k_opt_algo.strip()=='BFGS' and (nAtoms>=1000)):
-        args.cp2k_opt_algo='LBFGS'
+    if(args.cp2k_opt_algo[0].strip()=='BFGS' and (nAtoms>=1000)):
+        args.cp2k_opt_algo[0]='LBFGS'
     while (fi.tell() < eof):
         line=fi.readline()
         words=line.split()
@@ -1533,19 +1536,19 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
             title='   PROJECT_NAME '+basename.strip()
             fo.write('%s\n' % (title) ) 
             continue
-        if('RUN_TYPE' in line and (args.cp2k_elastic_piezo or args.strain or (args.cp2k_opt.strip()=='IONS'))):
+        if('RUN_TYPE' in line and (args.cp2k_elastic_piezo or args.strain or (args.cp2k_opt[0].strip()=='IONS'))):
             run='   RUN_TYPE GEO_OPT'
             fo.write('%s\n' % (run) ) 
             continue
-        if(args.cp2k_elastic_piezo or args.strain or (args.cp2k_opt.strip()=='IONS')):
+        if(args.cp2k_elastic_piezo or args.strain or (args.cp2k_opt[0].strip()=='IONS')):
             if('&MOTION' in line):
                 fo.write( "%s" % (line))
                 line=fi.readline()
                 opt='BFGS'
                 while('&END MOTION' not in line):
                     line=fi.readline()
-                    if( ('OPTIMIZER' in line) and (args.cp2k_opt_algo.strip())):
-                        opt=args.cp2k_opt_algo.strip()
+                    if( ('OPTIMIZER' in line) and (args.cp2k_opt_algo[0].strip())):
+                        opt=args.cp2k_opt_algo[0].strip()
                     elif('OPTIMIZER' in line):
                         words=line.split()
                         opt=words[1]
@@ -1587,7 +1590,7 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
                 norm=la.norm(uvw)
                 uvw=uvw/norm
                 fo.write('     &PERIODIC_EFIELD\n')
-                fo.write('       INTENSITY %lg\n' % (args.cp2k_dielectric_field))
+                fo.write('       INTENSITY %lg\n' % (args.cp2k_dielectric_field[0]))
                 fo.write('       POLARISATION %lf %lf %lf\n' % (uvw[0],uvw[1],uvw[2]))
                 fo.write('     &END PERIODIC_EFIELD\n')
                 continue
@@ -1599,11 +1602,11 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
                 print(dire)
                 print(uvw)
                 fo.write('     &PERIODIC_EFIELD\n')
-                fo.write('       INTENSITY %lg\n' % (args.cp2k_dielectric_field))
+                fo.write('       INTENSITY %lg\n' % (args.cp2k_dielectric_field[0]))
                 fo.write('       POLARISATION %lf %lf %lf\n' % (uvw[0],uvw[1],uvw[2]))
                 fo.write('     &END PERIODIC_EFIELD\n')
                 continue
-        if( (args.cp2k_ot_algo.strip()!='STRICT') or (args.cpscf) ):
+        if( (args.cp2k_ot_algo[0].strip()!='STRICT') or (args.cpscf) ):
             if('&SCF' in line):
                 fo.write( "%s" % (line))
                 line=fi.readline()
@@ -1612,7 +1615,7 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
                     if('MAX_SCF' and args.cpscf):
                         fo.write('       MAX_SCF 100\n')
                         continue
-                    if('SCF_GUESS' in line and (args.cp2k_ot_algo.strip()!='RESTART')):
+                    if('SCF_GUESS' in line and (args.cp2k_ot_algo[0].strip()!='RESTART')):
                         fc=inName.split('.')[0]
                         for i in range(1,len(inName.split('.'))-1):
                             fc=fc+'.'+inName.split('.')[i]
@@ -1623,21 +1626,21 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
                         fp=fp+'.wfn'
                         command='cp '+fc+' '+fp
                         os.system(command)
-                        fo.write('       SCF_GUESS %s\n' % (args.cp2k_ot_algo.strip()))
+                        fo.write('       SCF_GUESS %s\n' % (args.cp2k_ot_algo[0].strip()))
                         continue
-                    elif(args.cp2k_ot_algo.strip()!='RESTART'):
-                        fo.write('       SCF_GUESS %s\n' % (args.cp2k_ot_algo.strip()))
+                    elif(args.cp2k_ot_algo[0].strip()!='RESTART'):
+                        fo.write('       SCF_GUESS %s\n' % (args.cp2k_ot_algo[0].strip()))
                         continue
                     if('&OT' in line and not args.cpscf):
                         fo.write( "%s" % (line))
                         line=fi.readline()
                         while('&END OT' not in line):
                             line=fi.readline()
-                            if('ALGORITHM' in line and (args.cp2k_ot_algo.strip()!='IRAC')):
-                                fo.write('         ALGORITHM %s\n' % (args.cp2k_ot_algo.strip()))
+                            if('ALGORITHM' in line and (args.cp2k_ot_algo[0].strip()!='IRAC')):
+                                fo.write('         ALGORITHM %s\n' % (args.cp2k_ot_algo[0].strip()))
                                 continue
-                            elif(args.cp2k_ot_algo.strip()!='IRAC'):
-                                fo.write('         ALGORITHM %s\n' % (args.cp2k_ot_algo.strip()))
+                            elif(args.cp2k_ot_algo[0].strip()!='IRAC'):
+                                fo.write('         ALGORITHM %s\n' % (args.cp2k_ot_algo[0].strip()))
                                 continue
                             fo.write('%s' % (line))
                             continue
@@ -1666,7 +1669,7 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
                     continue
                 fo.write('%s' % (line))
                 continue
-        if( (args.exchange_correlation.strip()!='DEFAULT') or args.d3):
+        if( (args.exchange_correlation[0].strip()!='DEFAULT') or args.d3):
             isXc-False
             isD3=False
             if('&XC' in line):
@@ -1678,9 +1681,9 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
                         isXc=True
                         fo.write( "%s" % (line))
                         line=fi.readline()
-                        xc='         &'+args.exchange_correlation.strip()+' T'
+                        xc='         &'+args.exchange_correlation[0].strip()+' T'
                         fo.write('%s\n' % (xc))
-                        exc='         &END '+args.exchange_correlation.strip()
+                        exc='         &END '+args.exchange_correlation[0].strip()
                         fo.write('%s\n' % (exc))
                         while('&END XC_FUNCTIONAL' not in line):
                             line=fi.readline()
@@ -1693,9 +1696,9 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
                     continue
                 if(not isXc):
                     fo.write('      &XC_FUNCTIONAL\n')
-                    xc='         &'+args.exchange_correlation.strip()+' T'
+                    xc='         &'+args.exchange_correlation[0].strip()+' T'
                     fo.write('%s\n' % (xc))
-                    exc='         &END '+args.exchange_correlation.strip()
+                    exc='         &END '+args.exchange_correlation[0].strip()
                     fo.write('%s\n' % (exc))
                     fo.write('      &END XC_FUNCTIONAL\n')
                 if(not isD3):
@@ -1704,7 +1707,7 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
                     fo.write('         &PAIR_POTENTIAL\n')
                     fo.write('           TYPE  DFTD3\n')
                     fo.write('           PARAMETER_FILE_NAME dftd3.dat\n')
-                    fo.write('           REFERENCE_FUNCTIONAL %s\n' % (args.exchange_correlation.strip()))
+                    fo.write('           REFERENCE_FUNCTIONAL %s\n' % (args.exchange_correlation[0].strip()))
                     fo.write('         &END PAIR_POTENTIAL\n')
                     fo.write('       &END VDW_POTENTIAL\n')
                 fo.write('%s' % (line))
@@ -1763,7 +1766,7 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
             for el in lel:
                 k=ks.index(el.strip())
                 fo.write("%s %s\n" % ('     &KIND',el.strip()))
-                basisSet='       BASIS_SET '+args.basisset.strip()+'-MOLOPT-SR-GTH-q'
+                basisSet='       BASIS_SET '+args.basisset[0].strip()+'-MOLOPT-SR-GTH-q'
                 fo.write("%s%s\n" % (basisSet,kn[k]))
                 fo.write("%s%s\n" % ('       POTENTIAL GTH-PBE-q',kn[k]))
                 fo.write("%s\n" % ('     &END KIND'))
@@ -1858,8 +1861,8 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
     else:
         bravais_lattice='NONE'
     nAtoms=len(atoms)*math.ceil(18./a.norm)*math.ceil(18./b.norm)*math.ceil(18./c.norm)
-    if(args.cp2k_opt_algo.strip()=='BFGS' and (len(atoms)>=1000)):
-        args.cp2k_opt_algo='LBFGS'
+    if(args.cp2k_opt_algo[0].strip()=='BFGS' and (len(atoms)>=1000)):
+        args.cp2k_opt_algo=['LBFGS']
     fo=open(outName,'w')
     fo.write(' &GLOBAL\n')
     fo.write('   PRINT_LEVEL  MEDIUM\n')
@@ -1867,15 +1870,15 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
     for i in range(1,len(outName.split('.'))-1):
         basename=basename+'.'+outName.split('.')[i]
     fo.write('   PROJECT_NAME %s\n' % (basename.strip()))
-    if(args.cp2k_opt.strip()=='CELL'):
+    if(args.cp2k_opt[0].strip()=='CELL'):
         fo.write('   RUN_TYPE  %s\n' % ('CELL_OPT'))
-    elif(args.cp2k_opt.strip()=='IONS'):
+    elif(args.cp2k_opt[0].strip()=='IONS'):
         fo.write('   RUN_TYPE  %s\n' % ('GEO_OPT'))
     fo.write(' &END GLOBAL\n')
     fo.write(' &MOTION\n')
-    if(args.cp2k_opt.strip()=='CELL'):
+    if(args.cp2k_opt[0].strip()=='CELL'):
         fo.write('   &CELL_OPT\n')
-        fo.write('     OPTIMIZER  %s\n' % (args.cp2k_opt_algo.strip()))
+        fo.write('     OPTIMIZER  %s\n' % (args.cp2k_opt_algo[0].strip()))
         fo.write('     MAX_ITER  1000\n')
         if(args.cp2k_opt_symmetry):
             fo.write('     KEEP_SPACE_GROUP  T\n')
@@ -1894,9 +1897,9 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
         if(dire is not None):
                 fo.write('     SYMM_REDUCTION %lf %lf %lf\n' % (dire[0],dire[1],dire[2]))
         fo.write('   &END CELL_OPT\n')
-    elif(args.cp2k_opt.strip()=='IONS'):
+    elif(args.cp2k_opt[0].strip()=='IONS'):
         fo.write('   &GEO_OPT\n')
-        fo.write('     OPTIMIZER  %s\n' % (args.cp2k_opt_algo.strip()))
+        fo.write('     OPTIMIZER  %s\n' % (args.cp2k_opt_algo[0].strip()))
         fo.write('     MAX_ITER  1000\n')
         if(args.cp2k_opt_symmetry):
             fo.write('     KEEP_SPACE_GROUP  T\n')
@@ -1918,7 +1921,7 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
         norm=la.norm(uvw)
         uvw=uvw/norm
         fo.write('     &PERIODIC_EFIELD\n')
-        fo.write('       INTENSITY %lg\n' % (args.cp2k_dielectric_field))
+        fo.write('       INTENSITY %lg\n' % (args.cp2k_dielectric_field[0]))
         fo.write('       POLARISATION %lf %lf %lf\n' % (uvw[0],uvw[1],uvw[2]))
         fo.write('     &END PERIODIC_EFIELD\n')
     fo.write('     BASIS_SET_FILE_NAME BASIS_MOLOPT\n')
@@ -1927,7 +1930,7 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
     fo.write('     CHARGE  0\n')
     if(args.cpscf):
         fo.write('     &SCF\n')
-        if(args.cp2k_ot_algo.strip()=='RESTART'):
+        if(args.cp2k_ot_algo[0].strip()=='RESTART'):
             fc=inName.split('.')[0]
             for i in range(1,len(inName.split('.'))-1):
                 fc=fc+'.'+inName.split('.')[i]
@@ -1938,7 +1941,7 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
             fp=fp+'.wfn'
             command='cp '+fc+' '+fp
             os.system(command)
-            fo.write('       SCF_GUESS %s\n' % (args.cp2k_ot_algo.strip()))
+            fo.write('       SCF_GUESS %s\n' % (args.cp2k_ot_algo[0].strip()))
         else:
             fo.write('       SCF_GUESS ATOMIC\n')
         fo.write('       ADDED_MOS 100')
@@ -1957,7 +1960,7 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
         fo.write('     &SCF\n')
         fo.write('       MAX_SCF  20\n')
         fo.write('       EPS_SCF    1.e-6\n')
-        if(args.cp2k_ot_algo.strip()=='RESTART'):
+        if(args.cp2k_ot_algo[0].strip()=='RESTART'):
             fc=inName.split('.')[0]
             for i in range(1,len(inName.split('.'))-1):
                 fc=fc+'.'+inName.split('.')[i]
@@ -1968,12 +1971,12 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
             fp=fp+'.wfn'
             command='cp '+fc+' '+fp
             os.system(command)
-            fo.write('       SCF_GUESS %s\n' % (args.cp2k_ot_algo.strip()))
+            fo.write('       SCF_GUESS %s\n' % (args.cp2k_ot_algo[0].strip()))
         else:
             fo.write('       SCF_GUESS ATOMIC\n')
         fo.write('       &OT  T\n')
-        if(args.cp2k_ot_algo.strip()=='IRAC'):
-            fo.write('         ALGORITHM %s\n' % (args.cp2k_ot_algo.strip()))
+        if(args.cp2k_ot_algo[0].strip()=='IRAC'):
+            fo.write('         ALGORITHM %s\n' % (args.cp2k_ot_algo[0].strip()))
         fo.write('         MINIMIZER  CG\n')
         fo.write('         PRECONDITIONER  FULL_ALL\n')
         fo.write('       &END OT\n')
@@ -1995,7 +1998,7 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
     fo.write('       GRADIENT_CUTOFF   1.0000000000000000E-10\n')
     fo.write('       TAU_CUTOFF        1.0000000000000000E-10\n')
     fo.write('       &XC_FUNCTIONAL  NO_SHORTCUT\n')
-    xc=args.exchange_correlation.strip()
+    xc=args.exchange_correlation[0].strip()
     if(xc.strip()=='DEFAULT'):
         xc='PBE'
     fo.write('         &%s T\n' % (xc))
@@ -2046,7 +2049,7 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
     for el in lel:
         k=ks.index(el.strip())
         fo.write("%s %s\n" % ('     &KIND',el.strip()))
-        basisSet='       BASIS_SET '+args.basisset.strip()+'-MOLOPT-SR-GTH-q'
+        basisSet='       BASIS_SET '+args.basisset[0].strip()+'-MOLOPT-SR-GTH-q'
         fo.write("%s%s\n" % (basisSet,kn[k]))
         fo.write('       POTENTIAL GTH-%s-q%s\n' % (xc.strip(),kn[k]))
         fo.write("%s\n" % ('     &END KIND'))
@@ -2186,10 +2189,10 @@ def writeCry(outName,atoms,a,b,c,args):
     fo.write("PREOPTGEOM\n")
     fo.write("ENDELA\n")
     fo.write("BASISSET\n")
-    basisSet='POB-'+args.basisset.strip()
+    basisSet='POB-'+args.basisset[0].strip()
     fo.write("%s\n" % (basisSet))
     fo.write("DFT\n")
-    xc=args.exchange_correlation.strip()
+    xc=args.exchange_correlation[0].strip()
     if((xc.strip()=='DEFAULT') or (xc.strip()=='PBE')):
         xc='PBEXC'
     if(args.d3):
@@ -2202,7 +2205,7 @@ def writeCry(outName,atoms,a,b,c,args):
     fo.close()
     return
 
-def undoSuperCell(atoms,a,b,c,sc):
+def undoSuperCell(atoms,a,b,c,isScaled,sc):
     ma=sc[0]
     mb=sc[1]
     mc=sc[2]
@@ -2234,39 +2237,39 @@ def undoSuperCell(atoms,a,b,c,sc):
         wz(a,b,c)
     return(atoms,a,b,c)
 
-def SuperCell(atoms,a,b,c,sc):
+def SuperCell(atoms,a,b,c,isScaled,sc):
     chainList=['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','0','1','2','3','4','5','6','7','8','9']
     
     ma=sc[0]
     mb=sc[1]
     mc=sc[2]
 
-    if(not isScaled):
-        cart2frac(atoms,a,b,c)
-        isScaled=True
+    if(isScaled):
+        frac2cart(atoms,a,b,c)
+        isScaled=False
 
     m=0
     ns=len(atoms)
     ne=ns*(ma*mb*mc)
-    for i in range(ma):
-        for j in range(mb):
-            for k in range(mc):
-                for l in range(ns):
+    for l in range(mc):
+        for k in range(mb):
+            for j in range(ma):
+                for i in range(ns):
                     atoms.append(Atom())
-                    cpAtom(atoms[-1],atoms[l])
+                    cpAtom(atoms[-1],atoms[i])
                     if(i==0 and j==0 and k==0 and l==0):
-                        oldr=atoms[l].resIdx
+                        oldr=atoms[i].resIdx
                         nr=1
-                    elif(atoms[l].resIdx!=oldr):
+                    elif(atoms[i].resIdx!=oldr):
                         nr+=1
-                    oldr=atoms[l].resIdx
+                    oldr=atoms[i].resIdx
                     chain=chainList[((nr-1) % int(len(chainList)/3))]
                     atoms[-1].idx=m+1
                     atoms[-1].resIdx=nr
                     atoms[-1].chain=chain
-                    atoms[-1].x=atoms[l].x+i
-                    atoms[-1].y=atoms[l].y+j
-                    atoms[-1].z=atoms[l].z+k
+                    atoms[-1].x=atoms[i].x+j*a.x+k*b.x+l*c.x
+                    atoms[-1].y=atoms[i].y+j*a.y+k*b.y+l*c.y
+                    atoms[-1].z=atoms[i].z+j*a.z+k*b.z+l*c.z
                     m+=1
 
     a.x*=float(ma)
@@ -2279,6 +2282,11 @@ def SuperCell(atoms,a,b,c,sc):
     c.y*=float(mc)
     c.z*=float(mc)
     wz(a,b,c)
+
+    if(not isScaled):
+        cart2frac(atoms,a,b,c)
+        isScaled=True
+
     return(atoms,a,b,c)
 
 def elastic_piezo_strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
@@ -2307,7 +2315,7 @@ def elastic_piezo_strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
     for v in voigt:
         for n in numDev:
             e=np.identity(3)
-            e[v[0],v[1]]+=args.cp2k_elastic_piezo_step
+            e[v[0],v[1]]+=args.cp2k_elastic_piezo_step[0]
             te=np.transpose(e)
             hs=np.matmul(hmat,te) # xyz axes, angles not conserved, VASP approach
             a.x=hs[0,0]
@@ -2360,21 +2368,21 @@ def strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
     fax=['x','y','z','yz','xz','xy']
     for s in args.strain_values:
         e=np.identity(3)
-        if(args.strain_axis.strip()=='a' or args.strain_axis.strip()=='x'):
+        if(args.strain_axis[0].strip()=='a' or args.strain_axis[0].strip()=='x'):
             e[0,0]+=s
-        elif(args.strain_axis.strip()=='b' or args.strain_axis.strip()=='y'):
+        elif(args.strain_axis[0].strip()=='b' or args.strain_axis[0].strip()=='y'):
             e[1,1]+=s
-        elif(args.strain_axis.strip()=='c' or args.strain_axis.strip()=='z'):
+        elif(args.strain_axis[0].strip()=='c' or args.strain_axis[0].strip()=='z'):
             e[2,2]+=s
-        elif(args.strain_axis.strip()=='al' or args.strain_axis.strip()=='yz'):
+        elif(args.strain_axis[0].strip()=='al' or args.strain_axis[0].strip()=='yz'):
             e[2,1]+=s
-        elif(args.strain_axis.strip()=='be' or args.strain_axis.strip()=='xz'):
+        elif(args.strain_axis[0].strip()=='be' or args.strain_axis[0].strip()=='xz'):
             e[2,0]+=s
-        elif(args.strain_axis.strip()=='ga' or args.strain_axis.strip()=='xy'):
+        elif(args.strain_axis[0].strip()=='ga' or args.strain_axis[0].strip()=='xy'):
             e[1,0]+=s
-        if(args.strain_axis.strip() in cax):
+        if(args.strain_axis[0].strip() in cax):
             hs=np.matmul(e,hmat) # abc axes, angles conserved
-        elif(args.strain_axis.strip() in fax):
+        elif(args.strain_axis[0].strip() in fax):
             te=np.transpose(e)
             hs=np.matmul(hmat,te) # xyz axes, angles not conserved
         a.x=hs[0,0]
@@ -2386,14 +2394,14 @@ def strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
         c.x=hs[2,0]
         c.y=hs[2,1]
         c.z=hs[2,2]
-        fname=basename+'.'+args.strain_axis.strip()+'_'+str(s)+'.'+ext
+        fname=basename+'.'+args.strain_axis[0].strip()+'_'+str(s)+'.'+ext
         io_write(inName,fname,atoms,a,b,c,isScaled,sysType,args,None)
     return
 
 def get_stress(inName,outName,args):
     cax=['a','b','c']
     fax=['x','y','z']
-    axis=args.strain_axis.strip()
+    axis=args.strain_axis[0].strip()
     if(axis in cax):
         sigma=np.zeros((len(st)+1,5))
     else:
@@ -3092,7 +3100,7 @@ def get_tensors(inName,outName,atoms,a0,b0,c0,isScaled,args):
                 ds[k,jj,ii,:,:]=stress[:,:]
                 k=k+1
     
-        h=args.cp2k_elastic_piezo_step/debye2au
+        h=args.cp2k_elastic_piezo_step[0]/debye2au
         e=dm_pbc(bf,tr1)
         e=e*int2debye/(2*h*vol0)
         e=sym_tensor3(e,rotations,nop,hmat)
@@ -3103,7 +3111,7 @@ def get_tensors(inName,outName,atoms,a0,b0,c0,isScaled,args):
                 ll=idx[k][1]
                 ev[i][k]=e[i][kk][ll]
     
-        h=-args.cp2k_elastic_piezo_step
+        h=-args.cp2k_elastic_piezo_step[0]
         c=np.zeros((3,3,3,3))
         c[:,:,:,:]=( (ds[1,:,:,:,:]-ds[0,:,:,:,:]) ) / (2.0*h)
         c=sym_tensor4_helper(c)
@@ -3168,7 +3176,7 @@ def get_tensors(inName,outName,atoms,a0,b0,c0,isScaled,args):
         hartree=4.3597447222071e-18
         a0=5.29177210903e-11
         reps=4.*math.pi*a0*hartree/(ele*ele)
-        h=(args.cp2k_dielectric_field*ef)/(debye2au)
+        h=(args.cp2k_dielectric_field[0]*ef)/(debye2au)
     
         ide=np.identity(3)
     
@@ -3381,29 +3389,29 @@ parser=ap.ArgumentParser(prog='crystools',description='Convert between various s
 parser.add_argument('-i','--input',nargs='+',required=True,help='Input file(s). Format: CIF(.cif), PDB (.pdb), GROMACS (.gro), Cartesian (.xyz), DFTB+ (.gen), VASP (POSCAR, .poscar, .vasp), CP2K (.inp, .restart),Crystal23 (.cry, .d12)')
 parser.add_argument('-o','--output',nargs='+',required=True,help='Output file(s). Format: CIF(.cif), PDB (.pdb), GROMACS (.gro), Cartesian (.xyz), DFTB+ (.gen), VASP (POSCAR, .poscar, .vasp), CP2K (.inp, .restart),Crystal23 (.cry, .d12)')
 parser.add_argument('-sc', '--super_cell',type=int,nargs=3,default=[1,1,1],help='Number of replicas in each direction to make or reverse a supercell.')
-parser.add_argument('-msc', '--make_super_cell',nargs=1,choices=['no','do','undo'],default='no',help='Whether to do nothing (no), make (do), or reverse (undo) a supercell.')
+parser.add_argument('-msc', '--make_super_cell',nargs=1,choices=['no','do','undo'],default=['no'],help='Whether to do nothing (no), make (do), or reverse (undo) a supercell.')
 parser.add_argument('-d3',action='store_true',help='Use Grimme D3 corrections in DFT input files.')
 parser.add_argument('-asym',action='store_true',help='Print only the aymmetric unit.')
 parser.add_argument('-strain',action='store_true',help='Generate as series of strained systems along one of the crystallographic or cartesian axis.')
 parser.add_argument('-sv','--strain_values',type=float,nargs='+',default=[0.005, 0.01, 0.015, 0.02, 0.025, 0.04, 0.05,0.06, 0.08, 0.1, 0.12, 0.15, 0.18, 0.2, 0.25],help='Values for straining the system.')
-parser.add_argument('-sa','--strain_axis',nargs=1,choices=['a','b','c','x','y','z'],default='c',help='Axis along which to generate as series of strained systems.')
+parser.add_argument('-sa','--strain_axis',nargs=1,choices=['a','b','c','x','y','z'],default=['c'],help='Axis along which to generate as series of strained systems.')
 parser.add_argument('-getstress',action='store_true',help='Read the stress from the output files of as series of strained systems along one of the crystallographic or cartesian axis. The results are stored in outName and the stress tensor for the unstrained system is read in inName. For VASP, input file must be name OUTCAR, for the series of strains, files are expected to be named OUTCAR.[strained value]. E.g. OUTCAR.0.1')
-parser.add_argument('-cpot','--cp2k_ot_algo',nargs=1,choices=['STRICT','IRAC','RESTART'],default='STRICT',help='Algorithm to ensure convergence of the Choleski decomposition. For difficult systems, use IRAC or RESTART. For RESTART, you need to have the wavefunction file from a previous calculation for the system of interest. This file should have the same basename as the input file with the extension .wfn.')
-parser.add_argument('-cpopt','--cp2k_opt',nargs=1,choices=['CELL','IONS'],default='CELL',help='Optimization approach: full cell and ionic positions (CELL), or only the ionic positions (IONS).')
-parser.add_argument('-cpoptal','--cp2k_opt_algo',nargs=1,choices=['BFGS','CG'],default='BFGS',help='Optimization algorithm. If the number of atoms exceeds 999, BFGS is changed to its linearized version LBFGS.')
+parser.add_argument('-cpot','--cp2k_ot_algo',nargs=1,choices=['STRICT','IRAC','RESTART'],default=['STRICT'],help='Algorithm to ensure convergence of the Choleski decomposition. For difficult systems, use IRAC or RESTART. For RESTART, you need to have the wavefunction file from a previous calculation for the system of interest. This file should have the same basename as the input file with the extension .wfn.')
+parser.add_argument('-cpopt','--cp2k_opt',nargs=1,choices=['CELL','IONS'],default=['CELL'],help='Optimization approach: full cell and ionic positions (CELL), or only the ionic positions (IONS).')
+parser.add_argument('-cpoptal','--cp2k_opt_algo',nargs=1,choices=['BFGS','CG'],default=['BFGS'],help='Optimization algorithm. If the number of atoms exceeds 999, BFGS is changed to its linearized version LBFGS.')
 parser.add_argument('-cpoptan','--cp2k_opt_angles',action='store_true',help='Whether the angles of the lattice are allowed to relax.')
 parser.add_argument('-cpoptbr','--cp2k_opt_bravais',action='store_true',help='Whether the bravais lattice is conserved or not.')
 parser.add_argument('-cpoptsy','--cp2k_opt_symmetry',action='store_true',help='Whether the space group is conserved or not.')
 parser.add_argument('-cptp','--cp2k_template',help='Template file for CP2K software if interested in different options.')
 parser.add_argument('-cpscf',action='store_true',help='Use standard diagonalization instead of Orbital Transformation in CP2K calculations.')
-parser.add_argument('-xc','--exchange_correlation',nargs=1,choices=['BLYP','B3LYP','PBE','PBE0','DEFAULT'],default='DEFAULT',help='Exchange-correlation functional. This is a snall selection of the most common functional found in all DFT software. Check the manual of your DFT software for the full rannge of its capabilities, and edit the input file accordingly. DEFAULT corresponds to whatever is provided in the input/template or PBE.')
-parser.add_argument('-bs','--basisset',nargs=1,choices=['DZVP','TZVP'],default='DZVP',help='Basis set. This is a snall selection of the most basis sets found in all DFT software. Check the manual of your DFT software for the full rannge of its capabilities, and edit the input file accordingly.')
+parser.add_argument('-xc','--exchange_correlation',nargs=1,choices=['BLYP','B3LYP','PBE','PBE0','DEFAULT'],default=['DEFAULT'],help='Exchange-correlation functional. This is a snall selection of the most common functional found in all DFT software. Check the manual of your DFT software for the full rannge of its capabilities, and edit the input file accordingly. DEFAULT corresponds to whatever is provided in the input/template or PBE.')
+parser.add_argument('-bs','--basisset',nargs=1,choices=['DZVP','TZVP'],default=['DZVP'],help='Basis set. This is a snall selection of the most basis sets found in all DFT software. Check the manual of your DFT software for the full rannge of its capabilities, and edit the input file accordingly.')
 parser.add_argument('-cpelpi','--cp2k_elastic_piezo',action='store_true',help='Generate as series of strain of the system to obtain the elastic and piezolectric tensors with CP2K.')
 parser.add_argument('-cpdie','--cp2k_dielectric',action='store_true',help='Generate as series of variations of the electric field to obtain the dielectric tensor with CP2K.')
 parser.add_argument('-cpelpig','--cp2k_elastic_piezo_get',action='store_true',help='Get the piezoelectric and elastic tensors from a series of strain of the system.')
 parser.add_argument('-cpdieg','--cp2k_dielectric_get',action='store_true',help='Get the dielectric tensor from a series of variations of the electric field.')
-parser.add_argument('-cpst','--cp2k_elastic_piezo_step',nargs=1,type=float,default=1.e-2,help='Strain percentage for the calculation of the elastic and piezolectric tensors with CP2K.')
-parser.add_argument('-cpef','--cp2k_dielectric_field',nargs=1,type=float,default=2.e-4,help='Field step for the calculation of dielectric tensor with CP2K.')
+parser.add_argument('-cpst','--cp2k_elastic_piezo_step',nargs=1,type=float,default=[1.e-2],help='Strain percentage for the calculation of the elastic and piezolectric tensors with CP2K.')
+parser.add_argument('-cpef','--cp2k_dielectric_field',nargs=1,type=float,default=[2.e-4],help='Field step for the calculation of dielectric tensor with CP2K.')
 parser.add_argument('-se','--symmetry_excluded',nargs=2,type=int,action='append',help='Range of atoms excluded from symmetry identification and enforcement. Keywords is repeatable.')
 parser.add_argument('-vaspelg','--vasp_elastic_get',action='store_true',help='Get the elastic tensor from VASP output file. This file is provided as an input')
 parser.add_argument('-vasppig','--vasp_piezo_get',action='store_true',help='Get the piezoelectric and dielectric tensors from VASP output file. This file is provided as an input. If both --vasp_elastic_get and --vasp_piezo_get are requested, the files are provided as a list of inputs with the piezoelectric file first.')
@@ -3420,10 +3428,10 @@ if(args.vasp_elastic_get or args.vasp_piezo_get):
 else:
     atoms,a,b,c,isScaled,sysType=io_read(args.input[0])
 
-if(args.make_super_cell.strip()=='undo'):
-    atoms,a,b,c=undoSuperCell(atoms,a,b,c,args.super_cell)
-elif(args.make_super_cell.strip()=='do'):
-    atoms,a,b,c=superCell(atoms,a,b,c,args.super_cell)
+if(args.make_super_cell[0].strip()=='undo'):
+    atoms,a,b,c=undoSuperCell(atoms,a,b,c,isScaled,args.super_cell)
+elif(args.make_super_cell[0].strip()=='do'):
+    atoms,a,b,c=SuperCell(atoms,a,b,c,isScaled,args.super_cell)
 
 if(args.getstress):
     get_stress(args.input[0],args.output[0],args)
