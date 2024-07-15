@@ -69,7 +69,7 @@ class Zmat(object):
     idx=1
     name=" H  "
     loc=' '
-    resName="ALA"
+    resName="DUM"
     chain='A'
     resIdx=1
     inser=' '
@@ -98,7 +98,7 @@ class Residue(object):
     nAt=0
     fAt=0
     lAt=0
-    resName="ALA"
+    resName="DUM"
     segName="P1  "
 
 class Site(object):
@@ -106,7 +106,7 @@ class Site(object):
     at2=0
     at3=0
     resIdx=0
-    resName="ALA"
+    resName="DUM"
     segName="P1  "
     isGlyc=False
 
@@ -315,7 +315,9 @@ def readPdb(fName):
             continue
         elif(line[0:6]=="ANISOU"):
             continue
-        elif(line[0:6]=="HETATM"):
+        elif(line[0:6]=="COMPND"):
+            continue
+        elif(line[0:6]=="CONECT"):
             continue
         elif(line[0:6]=="CRYST1"):
             words=line.split()
@@ -336,15 +338,16 @@ def readPdb(fName):
         atoms[i].idx=i+1
         atoms[i].name=line[12:16]
         atoms[i].loc=line[16]
-        atoms[i].resName=line[17:21]
+        if(len(line[17:21].strip())>0):
+            atoms[i].resName=line[17:21]
         #atoms[i].chain=line[21]
         atoms[i].chain=chainList[(nter-1) % len(chainList)]
         if(i==0):
-            oldr=int(line[22:26])
+            oldr=line[22:26]
             nr=1
-        elif(int(line[22:26])!=oldr):
+        elif(line[22:26]!=oldr):
             nr=nr+1
-        oldr=int(line[22:26])
+        oldr=line[22:26]
         atoms[i].resIdx=nr
         atoms[i].inser=line[26]
         atoms[i].x=float(line[30:38])
