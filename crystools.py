@@ -322,6 +322,7 @@ def readPdb(fName):
         elif(line[0:6]=="CRYST1"):
             words=line.split()
             a,b,c=crystobox(words)
+            spg=line[55:66]
             isCryst=True
             continue
         elif(line[0:3]=="TER"):
@@ -363,7 +364,7 @@ def readPdb(fName):
         b=lattice_vect()
         c=lattice_vect()
     fi.close()
-    return atoms,a,b,c
+    return atoms,a,b,c,spg
 
 def writePdb(fName,atoms,a,b,c):
     fo=open(fName,'w')
@@ -371,7 +372,11 @@ def writePdb(fName,atoms,a,b,c):
         al=math.acos((b.x*c.x+b.y*c.y+b.z*c.z)/(b.norm*c.norm))*180./math.pi
         be=math.acos((a.x*c.x+a.y*c.y+a.z*c.z)/(a.norm*c.norm))*180./math.pi
         ga=math.acos((a.x*b.x+a.y*b.y+a.z*b.z)/(a.norm*b.norm))*180./math.pi
-        fo.write("CRYST1%9.3f%9.3f%9.3f%7.2f%7.2f%7.2f%11s%4d\n" % (a.norm,b.norm,c.norm,al,be,ga,'P1',1))
+    else:
+        al=90.
+        be=90.
+        ga=90.
+    fo.write("CRYST1%9.3f%9.3f%9.3f%7.2f%7.2f%7.2f%11s%4d\n" % (a.norm,b.norm,c.norm,al,be,ga,'P1',1))
     oldChain=atoms[0].chain
     oldResIdx=atoms[0].resIdx
     for at in atoms:
@@ -446,8 +451,7 @@ def writeGro(fName,atoms,a,b,c):
     fo.close()
     return
 
-def readGzmat(fName,fPdb):
-    atoms=readPdb(fPdb)
+def readGzmat(fName,atoms):
     
     fi=open(fName,"r")
     
@@ -928,61 +932,68 @@ def getDipoleCP2K(fname):
     return mu,a,b,c
 
 def getStressTensorCP2K(fname):
-    fi=open(fname,'r')
-    fi.seek(0,2)
-    eof = fi.tell()
-    fi.seek(0,0)
-    isLast=False
-    stress=np.zeros((3,3))
-    while (fi.tell() < eof):
-        line=fi.readline()
-        words=line.split()
-        if('CELL| Vector a' in line):
-            a=lattice_vect()
-            a.x=float(words[4])
-            a.y=float(words[5])
-            a.z=float(words[6])
-            continue
-        if('CELL| Vector b' in line):
-            b=lattice_vect()
-            b.x=float(words[4])
-            b.y=float(words[5])
-            b.z=float(words[6])
-            continue
-        if('CELL| Vector c' in line):
-            c=lattice_vect()
-            c.x=float(words[4])
-            c.y=float(words[5])
-            c.z=float(words[6])
-            continue
-        if('STRESS TENSOR [GPa]' in line):
-            isLast=True
-            continue
-        if('STRESS| Analytical stress tensor [GPa]' in line):
-            isLast=True
-            continue
-        if('X                       Y                       Z' in line):
-            continue
-        if('X               Y               Z' in line):
-            continue
-        if('x                   y                   z' in line):
-            continue
-        if(('  X ' in line or 'STRESS|      x ' in line) and isLast):
-            stress[0,0]=float(words[2])
-            stress[0,1]=float(words[3])
-            stress[0,2]=float(words[4])
-            continue
-        if(('  Y ' in line or 'STRESS|      y ' in line) and isLast):
-            stress[1,0]=float(words[2])
-            stress[1,1]=float(words[3])
-            stress[1,2]=float(words[4])
-            continue
-        if(('  Z ' in line or 'STRESS|      z ' in line) and isLast):
-            stress[2,0]=float(words[2])
-            stress[2,1]=float(words[3])
-            stress[2,2]=float(words[4])
-            isLast=False
-            continue
+    if os.path.isfile(fname):
+        print('getStress',fname)
+        fi=open(fname,'r')
+        fi.seek(0,2)
+        eof = fi.tell()
+        fi.seek(0,0)
+        isLast=False
+        stress=np.zeros((3,3))
+        while (fi.tell() < eof):
+            line=fi.readline()
+            words=line.split()
+            if('CELL| Vector a' in line):
+                a=lattice_vect()
+                a.x=float(words[4])
+                a.y=float(words[5])
+                a.z=float(words[6])
+                continue
+            if('CELL| Vector b' in line):
+                b=lattice_vect()
+                b.x=float(words[4])
+                b.y=float(words[5])
+                b.z=float(words[6])
+                continue
+            if('CELL| Vector c' in line):
+                c=lattice_vect()
+                c.x=float(words[4])
+                c.y=float(words[5])
+                c.z=float(words[6])
+                continue
+            if('STRESS TENSOR [GPa]' in line):
+                isLast=True
+                continue
+            if('STRESS| Analytical stress tensor [GPa]' in line):
+                isLast=True
+                continue
+            if('X                       Y                       Z' in line):
+                continue
+            if('X               Y               Z' in line):
+                continue
+            if('x                   y                   z' in line):
+                continue
+            if(('  X ' in line or 'STRESS|      x ' in line) and isLast):
+                stress[0,0]=float(words[2])
+                stress[0,1]=float(words[3])
+                stress[0,2]=float(words[4])
+                continue
+            if(('  Y ' in line or 'STRESS|      y ' in line) and isLast):
+                stress[1,0]=float(words[2])
+                stress[1,1]=float(words[3])
+                stress[1,2]=float(words[4])
+                continue
+            if(('  Z ' in line or 'STRESS|      z ' in line) and isLast):
+                stress[2,0]=float(words[2])
+                stress[2,1]=float(words[3])
+                stress[2,2]=float(words[4])
+                isLast=False
+                continue
+    else:
+        stress=np.zeros((3,3))
+        a=lattice_vect()
+        b=lattice_vect()
+        c=lattice_vect()
     return(stress,a,b,c)
 
 def getBoxCP2K(fname):
@@ -1151,15 +1162,16 @@ def wz(a,b,c):
     rc.y=a.z*b.x-b.z*a.x
     rc.z=a.x*b.y-b.x*a.y
     det=(a.x*ra.x)+(a.y*ra.y)+(a.z*ra.z)
-    ra.x/=det
-    ra.y/=det
-    ra.z/=det
-    rb.x/=det
-    rb.y/=det
-    rb.z/=det
-    rc.x/=det
-    rc.y/=det
-    rc.z/=det
+    if(det>sys.float_info.min):
+        ra.x/=det
+        ra.y/=det
+        ra.z/=det
+        rb.x/=det
+        rb.y/=det
+        rb.z/=det
+        rc.x/=det
+        rc.y/=det
+        rc.z/=det
     vol=math.fabs(det)
     return(ra,rb,rc,vol)
 
@@ -2404,13 +2416,13 @@ def strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
     return
 
 def get_stress(inName,outName,args):
-    cax=['a','b','c']
-    fax=['x','y','z']
+    cax=['a','b','c','al','be','ga']
+    fax=['x','y','z','yz','xz','xy']
     axis=args.strain_axis[0].strip()
     if(axis in cax):
-        sigma=np.zeros((len(st)+1,5))
+        sigma=np.zeros((len(args.strain_values)+1,5))
     else:
-        sigma=np.zeros((len(st)+1,3))
+        sigma=np.zeros((len(args.strain_values)+1,3))
 
     basename=inName.split('.')[0]
     ext=inName.split('.')[-1]
@@ -2418,8 +2430,9 @@ def get_stress(inName,outName,args):
     if('OUTCAR' in inName):
         isVASP=True
         stress=getStressTensorVASP(inName)
-    elif(ext=='.out' or ext=='.log'):
+    elif(ext=='out' or ext=='log'):
         stress,u,v,w=getStressTensorCP2K(inName)
+        print(stress)
     else:
         print(ext,'unknown output file extension. This function is only available for VASP and CP2K')
         exit()
@@ -2433,27 +2446,43 @@ def get_stress(inName,outName,args):
     elif(axis=='c'):
         si0=stress[2,2]
         sig0=stress[2]
+    elif(axis=='al'):
+        si0=stress[2,1]
+    elif(axis=='be'):
+        si0=stress[2,0]
+    elif(axis=='ga'):
+        si0=stress[1,0]
     elif(axis=='x'):
         si0=stress[0,0]
     elif(axis=='y'):
         si0=stress[1,1]
     elif(axis=='z'):
         si0=stress[2,2]
+    elif(axis=='yz'):
+        si0=stress[2,1]
+    elif(axis=='xz'):
+        si0=stress[2,0]
+    elif(axis=='xy'):
+        si0=stress[1,0]
 
     sigma[0,1]=si0
     sigma[0,2]=si0-si0
-    if(axis in cax):
+    if(axis in cax[0:3]):
         sigma[0,3]=la.norm(sig0)
         sigma[0,4]=la.norm(sig0-sig0)
 
     i=0
-    for s in st:
+    for s in args.strain_values:
         i+=1
         if(isVASP):
             fname=basename+'.'+axis.strip()+'_'+str(s)
         else:
             fname=basename+'.'+axis.strip()+'_'+str(s)+'.'+ext
-            stress,u,v,w=getStressTensorCP2K(fname)
+            if os.path.isfile(fname):
+                stress,u,v,w=getStressTensorCP2K(fname)
+            else:
+                sigma[i,0]=s
+                continue
         if(axis=='a'):
             si=stress[0,0]
             sig=stress[0]
@@ -2463,16 +2492,28 @@ def get_stress(inName,outName,args):
         elif(axis=='c'):
             si=stress[2,2]
             sig=stress[2]
+        elif(axis=='al'):
+            si=stress[2,1]
+        elif(axis=='be'):
+            si=stress[2,0]
+        elif(axis=='ga'):
+            si=stress[1,0]
         elif(axis=='x'):
             si=stress[0,0]
         elif(axis=='y'):
             si=stress[1,1]
         elif(axis=='z'):
             si=stress[2,2]
+        elif(axis=='yz'):
+            si=stress[2,1]
+        elif(axis=='xz'):
+            si=stress[2,0]
+        elif(axis=='xy'):
+            si=stress[1,0]
         sigma[i,0]=s
         sigma[i,1]=si
         sigma[i,2]=si-si0
-        if(axis in cax):
+        if(axis in cax[0:3]):
             sigma[i,3]=la.norm(sig)
             sigma[i,4]=la.norm(sig-sig0)
     
@@ -2666,7 +2707,7 @@ def io_read(inName):
     words=inName.split('.')
     ext=words[-1]
     if(ext=='pdb'):
-        atoms,a,b,c=readPdb(inName)
+        atoms,a,b,c,spg=readPdb(inName)
         isScaled=False
     elif(ext=='gro'):
         atoms,a,b,c=readGro(inName,'A')
@@ -2691,7 +2732,7 @@ def io_read(inName):
         atoms,isScaled=getCoordCP2K(inName)
         a,b,c=getBoxCP2K(inName)
     wz(a,b,c)
-    return(atoms,a,b,c,isScaled,sysType)
+    return(atoms,a,b,c,isScaled,sysType,spg)
 
 def io_write(inName,outName,atoms,a,b,c,isScaled,sysType,args,dire):
     words=outName.split('.')
@@ -3399,7 +3440,7 @@ parser.add_argument('-d3',action='store_true',help='Use Grimme D3 corrections in
 parser.add_argument('-asym',action='store_true',help='Print only the aymmetric unit.')
 parser.add_argument('-strain',action='store_true',help='Generate as series of strained systems along one of the crystallographic or cartesian axis.')
 parser.add_argument('-sv','--strain_values',type=float,nargs='+',default=[0.005, 0.01, 0.015, 0.02, 0.025, 0.04, 0.05,0.06, 0.08, 0.1, 0.12, 0.15, 0.18, 0.2, 0.25],help='Values for straining the system.')
-parser.add_argument('-sa','--strain_axis',nargs=1,choices=['a','b','c','x','y','z'],default=['c'],help='Axis along which to generate as series of strained systems.')
+parser.add_argument('-sa','--strain_axis',nargs=1,choices=['a','b','c','al','be','ga','x','y','z','yz','xz','xy'],default=['c'],help='Axis along which to generate as series of strained systems.')
 parser.add_argument('-getstress',action='store_true',help='Read the stress from the output files of as series of strained systems along one of the crystallographic or cartesian axis. The results are stored in outName and the stress tensor for the unstrained system is read in inName. For VASP, input file must be name OUTCAR, for the series of strains, files are expected to be named OUTCAR.[strained value]. E.g. OUTCAR.0.1')
 parser.add_argument('-cpot','--cp2k_ot_algo',nargs=1,choices=['STRICT','IRAC','RESTART'],default=['STRICT'],help='Algorithm to ensure convergence of the Choleski decomposition. For difficult systems, use IRAC or RESTART. For RESTART, you need to have the wavefunction file from a previous calculation for the system of interest. This file should have the same basename as the input file with the extension .wfn.')
 parser.add_argument('-cpopt','--cp2k_opt',nargs=1,choices=['CELL','IONS'],default=['CELL'],help='Optimization approach: full cell and ionic positions (CELL), or only the ionic positions (IONS).')
@@ -3430,17 +3471,18 @@ print(args)
 if(args.vasp_elastic_get or args.vasp_piezo_get):
     get_tensors_vasp(args)
     exit()
+elif(args.getstress):
+    get_stress(args.input[0],args.output[0],args)
+    exit()
 else:
-    atoms,a,b,c,isScaled,sysType=io_read(args.input[0])
+    atoms,a,b,c,isScaled,sysType,spg=io_read(args.input[0])
 
 if(args.make_super_cell[0].strip()=='undo'):
     atoms,a,b,c=undoSuperCell(atoms,a,b,c,isScaled,args.super_cell)
 elif(args.make_super_cell[0].strip()=='do'):
     atoms,a,b,c=SuperCell(atoms,a,b,c,isScaled,args.super_cell)
 
-if(args.getstress):
-    get_stress(args.input[0],args.output[0],args)
-elif(args.strain):
+if(args.strain):
     strain(args.input[0],args.output[0],atoms,a,b,c,isScaled,sysType,args)
 elif(args.cp2k_elastic_piezo):
     elastic_piezo_strain(args.input[0],args.output[0],atoms,a,b,c,isScaled,sysType,args)
