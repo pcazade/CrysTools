@@ -382,8 +382,12 @@ def writePdb(fName,atoms,a,b,c):
     for at in atoms:
         typeatom(at)
         if(at.idx<=99999):
+            if(at.resIdx>9999):
+                at.resIdx=(at.resIdx%10000)+1
             fo.write("%6s%5d %4s %4s%c%4d    %8.3f%8.3f%8.3f%6.2f%6.2f      %-4s%-2s\n" % (at.header,at.idx,at.name,at.resName,at.chain,at.resIdx,at.x,at.y,at.z,at.occ,at.beta,at.segName,at.el))
         else:
+            if(at.resIdx>9999):
+                at.resIdx=(at.resIdx%10000)+1
             fo.write("%6s%5x %4s %4s%c%4d    %8.3f%8.3f%8.3f%6.2f%6.2f      %-4s%-2s\n" % (at.header,at.idx,at.name,at.resName,at.chain,at.resIdx,at.x,at.y,at.z,at.occ,at.beta,at.segName,at.el))
     fo.write("END\n")
     fo.close()
@@ -933,7 +937,6 @@ def getDipoleCP2K(fname):
 
 def getStressTensorCP2K(fname):
     if os.path.isfile(fname):
-        print('getStress',fname)
         fi=open(fname,'r')
         fi.seek(0,2)
         eof = fi.tell()
@@ -1175,7 +1178,7 @@ def wz(a,b,c):
     vol=math.fabs(det)
     return(ra,rb,rc,vol)
 
-def writePoscar(fName,atoms,a,b,c):
+def writePoscar(fName,atoms,a,b,c,args):
     fo=open(fName,'w')
     fo.write("Written by cp2k2pdb.py by P.-A. Cazade\n")
     fo.write("   1.00000000000000\n")
@@ -1198,6 +1201,8 @@ def writePoscar(fName,atoms,a,b,c):
     for n in nel:
         fo.write("%6d" % (n))
     fo.write("\n")
+    if(args.sd):
+        fo.write("Selective dynamics\n")
     fo.write("Direct\n")
     for el in lel:
         for at in atoms:
@@ -1205,11 +1210,15 @@ def writePoscar(fName,atoms,a,b,c):
                 at.x-=math.floor(at.x)
                 at.y-=math.floor(at.y)
                 at.z-=math.floor(at.z)
-                fo.write("%20.16f%20.16f%20.16f\n" % (at.x,at.y,at.z))
+                if(args.sd):
+                    fo.write("%20.16f%20.16f%20.16f T T T\n" % (at.x,at.y,at.z))
+                else:
+                    fo.write("%20.16f%20.16f%20.16f\n" % (at.x,at.y,at.z))
     fo.close()
     return
 
 def readPoscar(fName):
+    isSelective=False
     isScaled=False
     fo=open(fName,'r')
     title=fo.readline()
@@ -1238,6 +1247,9 @@ def readPoscar(fName):
     for w in words:
         nel.append(int(w))
     line=fo.readline()
+    if(("selective" in line.lower()) or (line[0].lower()=='s')):
+        isSelective=True
+        line=fo.readline()
     if("direct" in line.lower()):
         isScaled=True
     atoms=[]
@@ -1454,7 +1466,7 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
         'Hf','Ta','W','Re','Os','Ir','Pt','Au','Hg','Tl','Pb','Bi','Po','At','Rn']
     kn=['1','2','3','4','3','4','5','6','7','8','9','10','3','4','5','6','7',
         '8','9','10','11','12','13','14','15','16','17','18','11','12','13',
-        '4','5','6','7','8','9','10','11','12','13','14','15','16','17','9',
+        '4','5','6','7','8','9','10','11','12','13','14','15','16','17',
         '18','11','12','13','4','5','6','7','8','9','10','12','13','14','15',
         '16','17','18','11','12','13','4','5','6','7','8']
     lel=[]
@@ -1476,59 +1488,61 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
     ga=math.acos((a.x*b.x+a.y*b.y+a.z*b.z)/(a.norm*b.norm))*180./math.pi
     hmat=[[a.x,a.y,a.z],[b.x,b.y,b.z],[c.x,c.y,c.z]]
     tih=np.transpose(la.inv(hmat))
-    if(args.symmetry_excluded is not None):
-        exclusionList=[]
-        for al in args.symmetry_excluded:
-            for i in range(al[0],al[1]+1):
-                exclusionList.append(i-1)
-        syst=[]
-        for i in range(len(atoms)):
-            if i in exclusionList:
-                continue
-            syst.append(Atom())
-            cpAtom(syst[-1],atoms[i])
-        dataset=get_dataset(syst,hmat)
-        del(syst)
-    else:
-        dataset=get_dataset(atoms,hmat)
-    print('Space Group:',dataset['number'])
-    if(dataset['number']<=2):
-        if( math.fabs(90.0-al)<=1e-2 and math.fabs(90.0-be)<=1e-2 and math.fabs(90.0-ga)<=1e-2 ):
+    if((not args.cp2k_elastic_piezo) and (not args.cp2k_dielectric)):
+        if(args.symmetry_excluded is not None):
+            exclusionList=[]
+            for al in args.symmetry_excluded:
+                for i in range(al[0],al[1]+1):
+                    exclusionList.append(i-1)
+            syst=[]
+            for i in range(len(atoms)):
+                if i in exclusionList:
+                    continue
+                syst.append(Atom())
+                cpAtom(syst[-1],atoms[i])
+            dataset=get_dataset(syst,hmat,args.hall_number[0])
+            del(syst)
+        else:
+            dataset=get_dataset(atoms,hmat,args.hall_number[0])
+        print('Space Group:',dataset['number'])
+        if(dataset['number']<=2):
+            if( math.fabs(90.0-al)<=1e-2 and math.fabs(90.0-be)<=1e-2 and math.fabs(90.0-ga)<=1e-2 ):
+                bravais_lattice='ORTHORHOMBIC'
+            else:
+                bravais_lattice='TRICLINIC'
+        elif(dataset['number']<=15):
+            if((math.fabs(b.norm-a.norm)<=1e-4) and (math.fabs(90.0-ga)<=1e-2)):
+                bravais_lattice='MONOCLINIC_GAMMA_AB'
+            else:
+                bravais_lattice='MONOCLINIC'
+        elif(dataset['number']<=74):
             bravais_lattice='ORTHORHOMBIC'
-        else:
-            bravais_lattice='TRICLINIC'
-    elif(dataset['number']<=15):
-        if((math.fabs(b.norm-a.norm)<=1e-4) and (math.fabs(90.0-ga)<=1e-2)):
-            bravais_lattice='MONOCLINIC_GAMMA_AB'
-        else:
-            bravais_lattice='MONOCLINIC'
-    elif(dataset['number']<=74):
-        bravais_lattice='ORTHORHOMBIC'
-    elif(dataset['number']<=142):
-        if((math.fabs(c.norm-a.norm)<=1e-4)):
-            bravais_lattice='TETRAGONAL_AC'
-        elif((math.fabs(c.norm-b.norm)<=1e-4)):
-            bravais_lattice='TETRAGONAL_BC'
-        else:
-            bravais_lattice='TETRAGONAL'
-    elif(dataset['number']<=167):
-        if((math.fabs(b.norm-a.norm)<=1e-4) and (math.fabs(c.norm-a.norm)<=1e-4)):
-            bravais_lattice='RHOMBOHEDRAL'
-        else:
+        elif(dataset['number']<=142):
+            if((math.fabs(c.norm-a.norm)<=1e-4)):
+                bravais_lattice='TETRAGONAL_AC'
+            elif((math.fabs(c.norm-b.norm)<=1e-4)):
+                bravais_lattice='TETRAGONAL_BC'
+            else:
+                bravais_lattice='TETRAGONAL'
+        elif(dataset['number']<=167):
+            if((math.fabs(b.norm-a.norm)<=1e-4) and (math.fabs(c.norm-a.norm)<=1e-4)):
+                bravais_lattice='RHOMBOHEDRAL'
+            else:
+                if((math.fabs(60.0-ga)<=1e-2)):
+                    bravais_lattice='HEXAGONAL'
+                else:
+                    bravais_lattice='MONOCLINIC_GAMMA_AB'
+        elif(dataset['number']<=194):
             if((math.fabs(60.0-ga)<=1e-2)):
                 bravais_lattice='HEXAGONAL'
             else:
                 bravais_lattice='MONOCLINIC_GAMMA_AB'
-    elif(dataset['number']<=194):
-        if((math.fabs(60.0-ga)<=1e-2)):
-            bravais_lattice='HEXAGONAL'
+        elif(dataset['number']<=230):
+            bravais_lattice='CUBIC'
         else:
-            bravais_lattice='MONOCLINIC_GAMMA_AB'
-    elif(dataset['number']<=230):
-        bravais_lattice='CUBIC'
+            bravais_lattice='NONE'
     else:
-        bravais_lattice='NONE'
-
+        bravais_lattice='TRICLINIC'
     isA=False
     isB=False
     isC=False
@@ -1547,6 +1561,8 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
     while (fi.tell() < eof):
         line=fi.readline()
         words=line.split()
+        if(line.strip()[0]=='#'):
+            continue
         if('PROJECT_NAME' in line):
             title='   PROJECT_NAME '+basename.strip()
             fo.write('%s\n' % (title) ) 
@@ -1561,12 +1577,12 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
                 line=fi.readline()
                 opt='BFGS'
                 while('&END MOTION' not in line):
-                    line=fi.readline()
                     if( ('OPTIMIZER' in line) and (args.cp2k_opt_algo[0].strip())):
                         opt=args.cp2k_opt_algo[0].strip()
                     elif('OPTIMIZER' in line):
                         words=line.split()
                         opt=words[1]
+                        line=fi.readline()
                         continue
                     if('SYMM_EXCLUDE_RANGE' in line):
                         words=line.split()
@@ -1574,6 +1590,7 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
                             ser=[]
                         isSer=True
                         ser.append([int(words[1]),int(words[2])])
+                    line=fi.readline()
                     continue
                 fo.write('   &GEO_OPT\n')
                 fo.write('     OPTIMIZER  %s\n' % (opt.strip()))
@@ -1596,7 +1613,7 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
                 fo.write('   &END GEO_OPT\n')
                 fo.write('%s' % (line))
                 continue
-        if(args.cp2k_elastic_piezo and (dire is not None)):
+        if(args.cp2k_dielectric and (dire is not None)):
             if(('STRESS_TENSOR' in line)):
                 continue
             if('&DFT' in line):
@@ -1625,44 +1642,43 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
             if('&SCF' in line):
                 fo.write( "%s" % (line))
                 line=fi.readline()
+                isScfGuess=False
+                if(args.cp2k_ot_algo[0].strip()=='RESTART'):
+                    fc=inName.split('.')[0]
+                    for i in range(1,len(inName.split('.'))-1):
+                        fc=fc+'.'+inName.split('.')[i]
+                    fc=fc+'.wfn'
+                    fp=outName.split('.')[0]
+                    for i in range(1,len(outName.split('.'))-1):
+                        fp=fp+'.'+outName.split('.')[i]
+                    fp=fp+'.wfn'
+                    command='cp '+fc+' '+fp
+                    os.system(command)
+                    fo.write('       SCF_GUESS %s\n' % (args.cp2k_ot_algo[0].strip()))
                 while('&END SCF' not in line):
-                    line=fi.readline()
                     if('MAX_SCF' and args.cpscf):
                         fo.write('       MAX_SCF 100\n')
+                        line=fi.readline()
                         continue
-                    if('SCF_GUESS' in line and (args.cp2k_ot_algo[0].strip()!='RESTART')):
-                        fc=inName.split('.')[0]
-                        for i in range(1,len(inName.split('.'))-1):
-                            fc=fc+'.'+inName.split('.')[i]
-                        fc=fc+'.wfn'
-                        fp=outName.split('.')[0]
-                        for i in range(1,len(outName.split('.'))-1):
-                            fp=fp+'.'+outName.split('.')[i]
-                        fp=fp+'.wfn'
-                        command='cp '+fc+' '+fp
-                        os.system(command)
-                        fo.write('       SCF_GUESS %s\n' % (args.cp2k_ot_algo[0].strip()))
-                        continue
-                    elif(args.cp2k_ot_algo[0].strip()!='RESTART'):
-                        fo.write('       SCF_GUESS %s\n' % (args.cp2k_ot_algo[0].strip()))
+                    if('SCF_GUESS' in line and (args.cp2k_ot_algo[0].strip()=='RESTART')):
+                        line=fi.readline()
                         continue
                     if('&OT' in line and not args.cpscf):
                         fo.write( "%s" % (line))
                         line=fi.readline()
+                        if(args.cp2k_ot_algo[0].strip()=='IRAC'):
+                            fo.write('         ALGORITHM %s\n' % (args.cp2k_ot_algo[0].strip()))
                         while('&END OT' not in line):
-                            line=fi.readline()
-                            if('ALGORITHM' in line and (args.cp2k_ot_algo[0].strip()!='IRAC')):
-                                fo.write('         ALGORITHM %s\n' % (args.cp2k_ot_algo[0].strip()))
-                                continue
-                            elif(args.cp2k_ot_algo[0].strip()!='IRAC'):
-                                fo.write('         ALGORITHM %s\n' % (args.cp2k_ot_algo[0].strip()))
+                            if('ALGORITHM' in line and (args.cp2k_ot_algo[0].strip()=='IRAC')):
+                                line=fi.readline()
                                 continue
                             fo.write('%s' % (line))
+                            line=fi.readline()
                             continue
                         fo.write('%s' % (line))
+                        line=fi.readline()
                         continue
                     elif('&OT' in line and args.cpscf):
-                        fo.write( "%s" % (line))
                         line=fi.readline()
                         while('&END OT' not in line):
                             line=fi.readline()
@@ -1679,41 +1695,51 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
                         fo.write('       &MIXING\n')
                         fo.write('         METHOD BROYDEN_MIXING\n')
                         fo.write('       &END MIXING\n')
+                        line=fi.readline()
                         continue
                     fo.write('%s' % (line))
+                    line=fi.readline()
                     continue
                 fo.write('%s' % (line))
                 continue
         if( (args.exchange_correlation[0].strip()!='DEFAULT') or args.d3):
-            isXc-False
+            isXc=False
             isD3=False
             if('&XC' in line):
                 fo.write( "%s" % (line))
                 line=fi.readline()
-                while('&END XC' not in line):
-                    line=fi.readline()
+                while(line.strip()!='&END XC'):
                     if('&XC_FUNCTIONAL' in line):
                         isXc=True
                         fo.write( "%s" % (line))
                         line=fi.readline()
-                        xc='         &'+args.exchange_correlation[0].strip()+' T'
-                        fo.write('%s\n' % (xc))
-                        exc='         &END '+args.exchange_correlation[0].strip()
-                        fo.write('%s\n' % (exc))
                         while('&END XC_FUNCTIONAL' not in line):
+                            if(args.exchange_correlation[0].strip()!='DEFAULT'):
+                                xc='         &'+args.exchange_correlation[0].strip()+' T'
+                                exc='         &END '+args.exchange_correlation[0].strip()
+                                fo.write('%s\n' % (xc))
+                                fo.write('%s\n' % (exc))
+                            else:
+                                fo.write('%s' % (line))
                             line=fi.readline()
                             continue
                         fo.write('%s' % (line))
+                        line=fi.readline()
                         continue
                     if('&VDW_POTENTIAL' in line):
                         isD3=True
                     fo.write('%s' % (line))
+                    line=fi.readline()
                     continue
                 if(not isXc):
                     fo.write('      &XC_FUNCTIONAL\n')
-                    xc='         &'+args.exchange_correlation[0].strip()+' T'
+                    if(args.exchange_correlation[0].strip()=='DEFAULT'):
+                        xc='         &'+'PBE'+' T'
+                        exc='         &END PBE'
+                    else:
+                        xc='         &'+args.exchange_correlation[0].strip()+' T'
+                        exc='         &END '+args.exchange_correlation[0].strip()
                     fo.write('%s\n' % (xc))
-                    exc='         &END '+args.exchange_correlation[0].strip()
                     fo.write('%s\n' % (exc))
                     fo.write('      &END XC_FUNCTIONAL\n')
                 if(not isD3):
@@ -1801,9 +1827,12 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
         'Hf','Ta','W','Re','Os','Ir','Pt','Au','Hg','Tl','Pb','Bi','Po','At','Rn']
     kn=['1','2','3','4','3','4','5','6','7','8','9','10','3','4','5','6','7',
         '8','9','10','11','12','13','14','15','16','17','18','11','12','13',
-        '4','5','6','7','8','9','10','11','12','13','14','15','16','17','9',
+        '4','5','6','7','8','9','10','11','12','13','14','15','16','17',
         '18','11','12','13','4','5','6','7','8','9','10','12','13','14','15',
         '16','17','18','11','12','13','4','5','6','7','8']
+    print(len(ks),len(kn))
+    for i in range(len(ks)):
+        print(i,ks[i],kn[i])
     lel=[]
     nel=[]
     for at in atoms:
@@ -1834,10 +1863,10 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
                 continue
             syst.append(Atom())
             cpAtom(syst[-1],atoms[i])
-        dataset=get_dataset(syst,hmat)
+        dataset=get_dataset(syst,hmat,args.hall_number[0])
         del(syst)
     else:
-        dataset=get_dataset(atoms,hmat)
+        dataset=get_dataset(atoms,hmat,args.hall_number[0])
     print(dataset['number'])
     if(dataset['number']<=2):
         if( math.fabs(90.0-al)<=1e-2 and math.fabs(90.0-be)<=1e-2 and math.fabs(90.0-ga)<=1e-2 ):
@@ -2077,21 +2106,6 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
     fo.close()
     return
 
-def get_dataset(atoms,hmat):
-    xyz=[]
-    ele=[]
-    kinds=[]
-    for at in atoms:
-        xyz.append([at.x,at.y,at.z])
-        typeatom(at)
-        if(at.el.strip() not in ele):
-            ele.append(at.el.strip())
-        ii=ele.index(at.el.strip())
-        kinds.append(ii+1)
-    cell=(hmat,xyz,kinds)
-    dataset = sg.get_symmetry_dataset(cell, symprec=1e-4, hall_number=0)
-    return(dataset)
-
 def writeCry(outName,atoms,a,b,c,args):
     ks=['H','He','Li','Be','B','C','N','O','F','Ne','Na','Mg','Al','Si','P',
         'S','Cl','Ar','K','Ca','Sc','Ti','V','Cr','Mn','Fe','Co','Ni','Cu',
@@ -2106,7 +2120,7 @@ def writeCry(outName,atoms,a,b,c,args):
     be=math.acos((a.x*c.x+a.y*c.y+a.z*c.z)/(a.norm*c.norm))*180./math.pi
     ga=math.acos((a.x*b.x+a.y*b.y+a.z*b.z)/(a.norm*b.norm))*180./math.pi
     hmat=[[a.x,a.y,a.z],[b.x,b.y,b.z],[c.x,c.y,c.z]]
-    dataset=get_dataset(atoms,hmat)
+    dataset=get_dataset(atoms,hmat,args.hall_number[0])
     print(dataset['number'])
     equivalent_atoms=dataset['equivalent_atoms']
     fo=open(outName,'w')
@@ -2327,25 +2341,30 @@ def elastic_piezo_strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
     hmat[2,1]=c.y
     hmat[2,2]=c.z
 
+    sa=lattice_vect()
+    sb=lattice_vect()
+    sc=lattice_vect()
+
     k=0
     for v in voigt:
         k+=1
         for n in numDev:
             e=np.identity(3)
-            e[v[0],v[1]]+=args.cp2k_elastic_piezo_step[0]
+            e[v[0],v[1]]+=args.cp2k_elastic_piezo_step[0]*n
             te=np.transpose(e)
             hs=np.matmul(hmat,te) # xyz axes, angles not conserved, VASP approach
-            a.x=hs[0,0]
-            a.y=hs[0,1]
-            a.z=hs[0,2]
-            b.x=hs[1,0]
-            b.y=hs[1,1]
-            b.z=hs[1,2]
-            c.x=hs[2,0]
-            c.y=hs[2,1]
-            c.z=hs[2,2]
+            sa.x=hs[0,0]
+            sa.y=hs[0,1]
+            sa.z=hs[0,2]
+            sb.x=hs[1,0]
+            sb.y=hs[1,1]
+            sb.z=hs[1,2]
+            sc.x=hs[2,0]
+            sc.y=hs[2,1]
+            sc.z=hs[2,2]
+            wz(sa,sb,sc)
             fname=basename+'.strain_'+str(k)+'_'+str(int(n))+'.inp'
-            io_write(inName,fname,atoms,a,b,c,isScaled,sysType,args,None)
+            io_write(inName,fname,atoms,sa,sb,sc,isScaled,sysType,args,None)
     return
 
 def dielectric_field(inName,outName,atoms,a,b,c,isScaled,sysType,args):
@@ -2378,6 +2397,10 @@ def strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
     hmat[2,1]=c.y
     hmat[2,2]=c.z
 
+    sa=lattice_vect()
+    sb=lattice_vect()
+    sc=lattice_vect()
+
     ext=outName.split('.')[-1]
     basename=outName.split('.')[0]
 
@@ -2402,17 +2425,18 @@ def strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
         elif(args.strain_axis[0].strip() in fax):
             te=np.transpose(e)
             hs=np.matmul(hmat,te) # xyz axes, angles not conserved
-        a.x=hs[0,0]
-        a.y=hs[0,1]
-        a.z=hs[0,2]
-        b.x=hs[1,0]
-        b.y=hs[1,1]
-        b.z=hs[1,2]
-        c.x=hs[2,0]
-        c.y=hs[2,1]
-        c.z=hs[2,2]
+        sa.x=hs[0,0]
+        sa.y=hs[0,1]
+        sa.z=hs[0,2]
+        sb.x=hs[1,0]
+        sb.y=hs[1,1]
+        sb.z=hs[1,2]
+        sc.x=hs[2,0]
+        sc.y=hs[2,1]
+        sc.z=hs[2,2]
+        wz(sa,sb,sc)
         fname=basename+'.'+args.strain_axis[0].strip()+'_'+str(s)+'.'+ext
-        io_write(inName,fname,atoms,a,b,c,isScaled,sysType,args,None)
+        io_write(inName,fname,atoms,sa,sb,sc,isScaled,sysType,args,None)
     return
 
 def get_stress(inName,outName,args):
@@ -2706,6 +2730,7 @@ def io_read(inName):
     isScaled=False
     words=inName.split('.')
     ext=words[-1]
+    spg='P1         '
     if(ext=='pdb'):
         atoms,a,b,c,spg=readPdb(inName)
         isScaled=False
@@ -2737,12 +2762,30 @@ def io_read(inName):
 def io_write(inName,outName,atoms,a,b,c,isScaled,sysType,args,dire):
     words=outName.split('.')
     ext=words[-1]
+    if(args.asym):
+        if(not isScaled):
+            cart2frac(atoms,a,b,c)
+            isScaled=True
+        hmat=[[a.x,a.y,a.z],[b.x,b.y,b.z],[c.x,c.y,c.z]]
+        dataset=get_dataset(atoms,hmat,args.hall_number[0])
+        print(dataset['hall_number'],dataset['international'],dataset['pointgroup'])
+        equivalent_atoms=dataset['equivalent_atoms']
+        atmp=[]
+        nat=0
+        for i in range(len(equivalent_atoms)):
+            if(equivalent_atoms[i]!=i):
+                continue
+            nat+=1
+            atmp.append(Atom())
+            cpAtom(atmp[-1],atoms[i])
+            atmp[-1].idx=nat
+        atoms=atmp
     if(ext=='POSCAR' or ext=="poscar" or ext=="vasp" or ('POSCAR' in inName)):
         if(isScaled):
-            writePoscar(outName,atoms,a,b,c)
+            writePoscar(outName,atoms,a,b,c,args)
         else:
             cart2frac(atoms,a,b,c)
-            writePoscar(outName,atoms,a,b,c)
+            writePoscar(outName,atoms,a,b,c,args)
     elif(ext=='pdb'):
         if(isScaled):
             frac2cart(atoms,a,b,c)
@@ -2780,24 +2823,67 @@ def io_write(inName,outName,atoms,a,b,c,isScaled,sysType,args,dire):
         writePdb(outName,atoms,a,b,c)
     return
 
-def get_rotations(atoms,hmat):
-    xyz=[]
-    ele=[]
-    kinds=[]
-    for at in atoms:
-        xyz.append([at.x,at.y,at.z])
-        typeatom(at)
-        if(at.el.strip() not in ele):
-            ele.append(at.el.strip())
-        ii=ele.index(at.el.strip())
-        kinds.append(ii+1)
-    cell=(hmat,xyz,kinds)
-    dataset = sg.get_symmetry_dataset(cell, symprec=1e-4, hall_number=0)
+def find_symmetry(atoms,a,b,c,isScaled,hall_number):
+    hmat=[[a.x,a.y,a.z],[b.x,b.y,b.z],[c.x,c.y,c.z]]
+    if(not isScaled):
+        isScaled=True
+        cart2frac(atoms,a,b,c)
+    dset=get_dataset(atoms,hmat,hall_number)
+    print(dset['hall_number'],dset['international'],dset['pointgroup'])
+    r=dset['rotations']
+    t=dset['translations']
+    nop=len(r)
+    for i in range(nop):
+        print(i+1,nop)
+        for j in range(3):
+            print("%2d %2d %2d %5.2f" % (r[i,j,0],r[i,j,1],r[i,j,2],t[i,j]))
+
+def get_dataset(atoms,hmat,hall_number):
+    print(hall_number)
+    if(hall_number>0):
+        dataset = sg.get_symmetry_from_database(hall_number)
+    else:
+        xyz=[]
+        ele=[]
+        kinds=[]
+        for at in atoms:
+            xyz.append([at.x,at.y,at.z])
+            typeatom(at)
+            if(at.el.strip() not in ele):
+                ele.append(at.el.strip())
+            ii=ele.index(at.el.strip())
+            kinds.append(ii+1)
+        cell=(hmat,xyz,kinds)
+        dataset = sg.get_symmetry_dataset(cell, symprec=5e-3, hall_number=0)
+        if(dataset==None):
+            print("Spglib failed with the following error message:",sg.get_error_message())
+            exit()
+    return(dataset)
+
+def get_rotations(atoms,hmat,hall_number):
+    if(hall_number>0):
+        dataset = sg.get_symmetry_from_database(hall_number)
+    else:
+        xyz=[]
+        ele=[]
+        kinds=[]
+        for at in atoms:
+            xyz.append([at.x,at.y,at.z])
+            typeatom(at)
+            if(at.el.strip() not in ele):
+                ele.append(at.el.strip())
+            ii=ele.index(at.el.strip())
+            kinds.append(ii+1)
+        cell=(hmat,xyz,kinds)
+        dataset = sg.get_symmetry_dataset(cell, symprec=5e-3, hall_number=0)
+        if(dataset==None):
+            print("Spglib failed with the following error message:",sg.get_error_message())
+            exit()
     print(dataset['hall_number'],dataset['international'],dataset['pointgroup'])
     return(dataset['rotations'])
 
-def get_rotations_subset(atoms,hmat):
-    r=get_rotations(atoms,hmat)
+def get_rotations_subset(atoms,hmat,hall_number):
+    r=get_rotations(atoms,hmat,hall_number)
     nop=len(r)
     mask=np.ones((nop),int)
     for i in range(0,nop-1):
@@ -3112,18 +3198,18 @@ def get_tensors(inName,outName,atoms,a0,b0,c0,isScaled,args):
                 continue
             syst.append(Atom())
             cpAtom(syst[-1],atoms[i])
-        dataset=get_dataset(syst,hmat)
-        rotations=get_rotations_subset(syst,hmat)
+        dataset=get_dataset(syst,hmat,args.hall_number[0])
+        rotations=get_rotations_subset(syst,hmat,args.hall_number[0])
         del(syst)
     else:
-        dataset=get_dataset(atoms,hmat)
-        rotations=get_rotations_subset(atoms,hmat)
+        dataset=get_dataset(atoms,hmat,args.hall_number[0])
+        rotations=get_rotations_subset(atoms,hmat,args.hall_number[0])
 
     nop=len(rotations)
     for i in range(nop):
         rotations[i]=np.transpose(rotations[i])
 
-    if(args.cp2k_elastic_piezo):
+    if(args.cp2k_elastic_piezo_get):
         bf=np.zeros((6,2,3))
         ds=np.zeros((2,3,3,3,3))
         idx=[[0,0],[1,1],[2,2],[2,1],[2,0],[1,0]]
@@ -3135,7 +3221,9 @@ def get_tensors(inName,outName,atoms,a0,b0,c0,isScaled,args):
                 if(j==0):
                     continue
                 fname=basename+'.strain_'+str(i+1)+'_'+str(j)+'.out'
+                print(fname)
                 mu,a,b,c=getDipoleCP2K(fname)
+                print(mu)
                 stress,u,v,w=getStressTensorCP2K(fname)
                 ra,rb,rc,vol=wz(a,b,c)
                 h2=np.array([[a.x,a.y,a.z],[b.x,b.y,b.z],[c.x,c.y,c.z]])
@@ -3147,9 +3235,11 @@ def get_tensors(inName,outName,atoms,a0,b0,c0,isScaled,args):
                 k=k+1
     
         h=args.cp2k_elastic_piezo_step[0]/debye2au
-        e=dm_pbc(bf,tr1)
+        print(args.cp2k_elastic_piezo_step[0],debye2au)
+        e=dm_pbc(bf,th)
         e=e*int2debye/(2*h*vol0)
         e=sym_tensor3(e,rotations,nop,hmat)
+        print(e)
     
         for i in range(3):
             for k in range(6):
@@ -3200,7 +3290,7 @@ def get_tensors(inName,outName,atoms,a0,b0,c0,isScaled,args):
         pr=(1. - 3.*gr/(3.*kr+gr))/2.
         ph=(1. - 3.*gh/(3.*kh+gh))/2.
 
-    if(args.cp2k_dielectric):
+    if(args.cp2k_dielectric_get):
         bf=np.zeros((6,2,3))
         for i in range(3):
             k=0
@@ -3227,7 +3317,7 @@ def get_tensors(inName,outName,atoms,a0,b0,c0,isScaled,args):
         ide=np.identity(3)
     
         x=np.zeros((3,3))
-        x=dm_pbc_dielec(bf,th1)
+        x=dm_pbc_dielec(bf,th)
         x=x*int2debye/(2*h*vol0)
         x=np.transpose(x)
         for i in range(2):
@@ -3244,10 +3334,10 @@ def get_tensors(inName,outName,atoms,a0,b0,c0,isScaled,args):
         es=((xs*reps)+ide)/reps
         be=la.inv(es)
 
-    if(args.cp2k_elastic_piezo and args.cp2k_dielectric):
+    if(args.cp2k_elastic_piezo_get and args.cp2k_dielectric_get):
         g=1.e-9*np.matmul(be,d)
 
-    print_tensors(outName,args,e,cv,ci,d,ep,g,kv,yv,gv,pv,kr,yr,gr,pr,kh,yh,gh,ph)
+    print_tensors(outName,args,ev,cv,ci,d,ep,g,kv,yv,gv,pv,kr,yr,gr,pr,kh,yh,gh,ph)
 
     return
 
@@ -3260,25 +3350,21 @@ def print_tensors(outName,args,e,c,ci,d,ep,g,kv,yv,gv,pv,kr,yr,gr,pr,kh,yh,gh,ph
     a6='     6    '
     fo=open(outName,'w')
     if(args.cp2k_elastic_piezo_get):
-        e=sym_tensor3_cleaner(e)
+        e=sym_tensor2_cleaner(e)
         fo.write('Piezoelectric Charge Constants [e] (C/m^2)\n')
         fo.write('  %10s%10s%10s%10s%10s%10s\n' % (a1,a2,a3,a4,a5,a6))
-        fo.write("1 %10.3lf%10.3lf%10.3lf%10.3lf%10.3lf%10.3lf\n" % (e[0][0][0],e[0][1][1],e[0][2][2],e[0][1][2],e[0][2][0],e[0][0][1]) )
-        fo.write("2 %10.3lf%10.3lf%10.3lf%10.3lf%10.3lf%10.3lf\n" % (e[1][0][0],e[1][1][1],e[1][2][2],e[1][1][2],e[1][2][0],e[1][0][1]) )
-        fo.write("3 %10.3lf%10.3lf%10.3lf%10.3lf%10.3lf%10.3lf\n" % (e[2][0][0],e[2][1][1],e[2][2][2],e[2][1][2],e[2][2][0],e[2][0][1]) )
+        fo.write("1 %10.3lf%10.3lf%10.3lf%10.3lf%10.3lf%10.3lf\n" % (e[0][0],e[0][1],e[0][2],e[0][3],e[0][4],e[0][5]) )
+        fo.write("2 %10.3lf%10.3lf%10.3lf%10.3lf%10.3lf%10.3lf\n" % (e[1][0],e[1][1],e[1][2],e[1][3],e[1][4],e[1][5]) )
+        fo.write("3 %10.3lf%10.3lf%10.3lf%10.3lf%10.3lf%10.3lf\n" % (e[2][0],e[2][1],e[2][2],e[2][3],e[2][4],e[2][5]) )
         fo.write('\n')
     
-        c=sym_tensor4_cleaner(c)
+        c=sym_tensor2_cleaner(c)
         fo.write('Elastic Constants (GPa)\n')
         fo.write('  %10s%10s%10s%10s%10s%10s\n' % (a1,a2,a3,a4,a5,a6))
         for i in range(6):
-            ii=idx[i][0]
-            jj=idx[i][1]
             fo.write('%2d' % (i+1))
             for k in range(6):
-                kk=idx[k][0]
-                ll=idx[k][1]
-                fo.write('%10.3lf' % (c[ii][jj][kk][ll]))
+                fo.write('%16.8lf' % (c[i][k]))
             fo.write('\n')
         fo.write('\n')
     
@@ -3436,8 +3522,11 @@ parser.add_argument('-i','--input',nargs='+',required=True,help='Input file(s). 
 parser.add_argument('-o','--output',nargs='+',required=True,help='Output file(s). Format: CIF(.cif), PDB (.pdb), GROMACS (.gro), Cartesian (.xyz), DFTB+ (.gen), VASP (POSCAR, .poscar, .vasp), CP2K (.inp, .restart),Crystal23 (.cry, .d12)')
 parser.add_argument('-sc', '--super_cell',type=int,nargs=3,default=[1,1,1],help='Number of replicas in each direction to make or reverse a supercell.')
 parser.add_argument('-msc', '--make_super_cell',nargs=1,choices=['no','do','undo'],default=['no'],help='Whether to do nothing (no), make (do), or reverse (undo) a supercell.')
+parser.add_argument('-sd',action='store_true',help='Selective Dynamics for VASP.')
 parser.add_argument('-d3',action='store_true',help='Use Grimme D3 corrections in DFT input files.')
 parser.add_argument('-asym',action='store_true',help='Print only the aymmetric unit.')
+parser.add_argument('-fsym',action='store_true',help='Find and print the space group number, Hall number, and symmetry operations.')
+parser.add_argument('-hn','--hall_number',nargs=1,type=int,default=[-1],help='Space group number used by Spglib, aka Hall number: 1-530. If provided it prevents the seach for the space group speeding up the symmetry section.')
 parser.add_argument('-strain',action='store_true',help='Generate as series of strained systems along one of the crystallographic or cartesian axis.')
 parser.add_argument('-sv','--strain_values',type=float,nargs='+',default=[0.005, 0.01, 0.015, 0.02, 0.025, 0.04, 0.05,0.06, 0.08, 0.1, 0.12, 0.15, 0.18, 0.2, 0.25],help='Values for straining the system.')
 parser.add_argument('-sa','--strain_axis',nargs=1,choices=['a','b','c','al','be','ga','x','y','z','yz','xz','xy'],default=['c'],help='Axis along which to generate as series of strained systems.')
@@ -3464,7 +3553,7 @@ parser.add_argument('-vasppig','--vasp_piezo_get',action='store_true',help='Get 
 
 args = parser.parse_args()
 
-print(args)
+#print(args)
 
 #exit()
 
@@ -3477,6 +3566,10 @@ elif(args.getstress):
 else:
     atoms,a,b,c,isScaled,sysType,spg=io_read(args.input[0])
 
+if(args.fsym):
+    find_symmetry(atoms,a,b,c,isScaled,args.hall_number[0])
+    exit()
+
 if(args.make_super_cell[0].strip()=='undo'):
     atoms,a,b,c=undoSuperCell(atoms,a,b,c,isScaled,args.super_cell)
 elif(args.make_super_cell[0].strip()=='do'):
@@ -3484,12 +3577,15 @@ elif(args.make_super_cell[0].strip()=='do'):
 
 if(args.strain):
     strain(args.input[0],args.output[0],atoms,a,b,c,isScaled,sysType,args)
+elif(args.cp2k_elastic_piezo and args.cp2k_dielectric):
+    elastic_piezo_strain(args.input[0],args.output[0],atoms,a,b,c,isScaled,sysType,args)
+    dielectric_field(args.input[0],args.output[0],atoms,a,b,c,isScaled,sysType,args)
 elif(args.cp2k_elastic_piezo):
     elastic_piezo_strain(args.input[0],args.output[0],atoms,a,b,c,isScaled,sysType,args)
 elif(args.cp2k_dielectric):
     dielectric_field(args.input[0],args.output[0],atoms,a,b,c,isScaled,sysType,args)
 elif(args.cp2k_elastic_piezo_get or args.cp2k_dielectric_get):
-    get_tensors(inName,outName,atoms,a,b,c,isScaled,args)
+    get_tensors(args.input[0],args.output[0],atoms,a,b,c,isScaled,args)
 else:
     for outName in args.output:
         io_write(args.input[0],outName,atoms,a,b,c,isScaled,sysType,args,None)
