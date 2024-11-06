@@ -2823,13 +2823,70 @@ def io_write(inName,outName,atoms,a,b,c,isScaled,sysType,args,dire):
         writePdb(outName,atoms,a,b,c)
     return
 
+def build_crystal(atoms,a,b,c,isScaled,hall_number):
+    hmat=[[a.x,a.y,a.z],[b.x,b.y,b.z],[c.x,c.y,c.z]]
+    if(not isScaled):
+        isScaled=True
+        cart2frac(atoms,a,b,c)
+    dset=get_dataset(atoms,hmat,hall_number)
+    ro=dset['rotations']
+    tr=dset['translations']
+    nRes=atoms[-1].resIdx
+    syst=[]
+    pn=0
+    idx=0
+    for i in range(len(tr)):
+        r=ro[i]
+        t=tr[i]
+        pn+=1
+        refs=''
+        for at in atoms:
+            idx+=1
+            syst.append(Atom())
+            cpAtom(syst[-1],at)
+            u=np.array([at.x,at.y,at.z])
+            u=np.matmul(r,u)
+            u=u+t
+            syst[-1].x=u[0]-math.floor(u[0])
+            syst[-1].y=u[1]-math.floor(u[1])
+            syst[-1].z=u[2]-math.floor(u[2])
+            syst[-1].idx=idx
+            syst[-1].chain='A'
+            if(at.segName.strip()!=refs):
+                refs=at.segName.strip()
+                pn+=1
+            syst[-1].segName='P'+str(pn)
+    
+    mask=np.zeros((len(syst)))
+    for i in range(len(mask)):
+        mask[i]=i
+
+    for i in range(len(syst)-1):
+        u=np.array([syst[i].x,syst[i].y,syst[i].z])
+        for j in range(i+1,len(syst)):
+            v=np.array([syst[j].x,syst[j].y,syst[j].z])
+            w=v-u
+            w[0]-=round(w[0])
+            w[1]-=round(w[1])
+            w[2]-=round(w[2])
+            d=la.norm(w)
+            if(d<1e-3 and (mask[j]==j)):
+                mask[j]=i
+
+    syst2=[]
+    for i in range(len(syst)):
+        if(mask[i]==i):
+            syst2.append(Atom())
+            cpAtom(syst2[-1],syst[i])
+
+    return(syst2,isScaled)
+
 def find_symmetry(atoms,a,b,c,isScaled,hall_number):
     hmat=[[a.x,a.y,a.z],[b.x,b.y,b.z],[c.x,c.y,c.z]]
     if(not isScaled):
         isScaled=True
         cart2frac(atoms,a,b,c)
     dset=get_dataset(atoms,hmat,hall_number)
-    print(dset['hall_number'],dset['international'],dset['pointgroup'])
     r=dset['rotations']
     t=dset['translations']
     nop=len(r)
@@ -2855,6 +2912,9 @@ def get_dataset(atoms,hmat,hall_number):
             kinds.append(ii+1)
         cell=(hmat,xyz,kinds)
         dataset = sg.get_symmetry_dataset(cell, symprec=5e-3, hall_number=0)
+        print("Hall number:",dataset['hall_number'])
+        print("International number:",dataset['international'])
+        print("Point group:",dataset['pointgroup'])
         if(dataset==None):
             print("Spglib failed with the following error message:",sg.get_error_message())
             exit()
@@ -2875,7 +2935,7 @@ def get_rotations(atoms,hmat,hall_number):
             ii=ele.index(at.el.strip())
             kinds.append(ii+1)
         cell=(hmat,xyz,kinds)
-        dataset = sg.get_symmetry_dataset(cell, symprec=5e-3, hall_number=0)
+        dataset = sg.get_symmetry_dataset(cell, symprec=1e-4, hall_number=0)
         if(dataset==None):
             print("Spglib failed with the following error message:",sg.get_error_message())
             exit()
@@ -3525,6 +3585,7 @@ parser.add_argument('-msc', '--make_super_cell',nargs=1,choices=['no','do','undo
 parser.add_argument('-sd',action='store_true',help='Selective Dynamics for VASP.')
 parser.add_argument('-d3',action='store_true',help='Use Grimme D3 corrections in DFT input files.')
 parser.add_argument('-asym',action='store_true',help='Print only the aymmetric unit.')
+parser.add_argument('-bsym',action='store_true',help='Build the crystal unit cell from the aymmetric unit. A Hall number must be provided')
 parser.add_argument('-fsym',action='store_true',help='Find and print the space group number, Hall number, and symmetry operations.')
 parser.add_argument('-hn','--hall_number',nargs=1,type=int,default=[-1],help='Space group number used by Spglib, aka Hall number: 1-530. If provided it prevents the seach for the space group speeding up the symmetry section.')
 parser.add_argument('-strain',action='store_true',help='Generate as series of strained systems along one of the crystallographic or cartesian axis.')
@@ -3569,6 +3630,14 @@ else:
 if(args.fsym):
     find_symmetry(atoms,a,b,c,isScaled,args.hall_number[0])
     exit()
+
+if(args.bsym):
+    if(args.hall_number[0]<=0):
+        print("A Hall number (1-530) is required to obtain the symmetry operations and build the crystal.")
+        exit()
+    atoms,isScaled=build_crystal(atoms,a,b,c,isScaled,args.hall_number[0])
+
+print(isScaled)
 
 if(args.make_super_cell[0].strip()=='undo'):
     atoms,a,b,c=undoSuperCell(atoms,a,b,c,isScaled,args.super_cell)
