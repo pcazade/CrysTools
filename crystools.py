@@ -1445,17 +1445,17 @@ def readCry(fName):
         k=k+1
     return(atoms,a,b,c)
 
-def writeCp2k(inName,outName,atoms,a,b,c,isScaled,args,dire):
+def writeCp2k(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire):
     ext=inName.split('.')[-1]
     if(args.cp2k_template is not None):
-        writeCp2kTemplate(args.cp2k_template[0],outName,atoms,a,b,c,isScaled,args,dire)
+        writeCp2kTemplate(args.cp2k_template[0],outName,atoms,a,b,c,isScaled,hall_number,args,dire)
     elif((ext=='inp') or (ext=='restart')):
-        writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire)
+        writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire)
     else:
-        writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire)
+        writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire)
     return
 
-def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
+def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire):
     lattice_list=['TRICLINIC','MONOCLINIC','MONOCLINIC_AB','MONOCLINIC_GAMMA_AB',
                  'ORTHORHOMBIC','TETRAGONAL','TETRAGONAL_AB','TETRAGONAL_AC',
                  'TETRAGONAL_BC','RHOMBOHEDRAL','HEXAGONAL','CUBIC','NONE']
@@ -1480,15 +1480,15 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
             i=lel.index(at.el.strip())
             nel[i]+=1
     if(not isScaled):
-        isScaled=True
-        cart2frac(atoms,a,b,c)
+        print("Error: the coordinates should be fractional at this stage. Report issue to the developer.")
+        exit()
     wz(a,b,c)
     al=math.acos((b.x*c.x+b.y*c.y+b.z*c.z)/(b.norm*c.norm))*180./math.pi
     be=math.acos((a.x*c.x+a.y*c.y+a.z*c.z)/(a.norm*c.norm))*180./math.pi
     ga=math.acos((a.x*b.x+a.y*b.y+a.z*b.z)/(a.norm*b.norm))*180./math.pi
     hmat=[[a.x,a.y,a.z],[b.x,b.y,b.z],[c.x,c.y,c.z]]
     tih=np.transpose(la.inv(hmat))
-    if((not args.cp2k_elastic_piezo) and (not args.cp2k_dielectric)):
+    if(((not args.cp2k_elastic_piezo) and (not args.cp2k_dielectric)) or (len(atoms)<=10000)):
         if(args.symmetry_excluded is not None):
             exclusionList=[]
             for al in args.symmetry_excluded:
@@ -1500,10 +1500,10 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
                     continue
                 syst.append(Atom())
                 cpAtom(syst[-1],atoms[i])
-            dataset=get_dataset(syst,hmat,args.hall_number[0])
+            dataset=get_dataset(syst,hmat,hall_number)
             del(syst)
         else:
-            dataset=get_dataset(atoms,hmat,args.hall_number[0])
+            dataset=get_dataset(atoms,hmat,hall_number)
         print('Space Group:',dataset['number'])
         if(dataset['number']<=2):
             if( math.fabs(90.0-al)<=1e-2 and math.fabs(90.0-be)<=1e-2 and math.fabs(90.0-ga)<=1e-2 ):
@@ -1555,6 +1555,7 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
     eof = fi.tell()
     fi.seek(0,0)
     isSer=False
+    isMM=False
     nAtoms=len(atoms)*math.ceil(18./a.norm)*math.ceil(18./b.norm)*math.ceil(18./c.norm)
     if(args.cp2k_opt_algo[0].strip()=='BFGS' and (nAtoms>=1000)):
         args.cp2k_opt_algo[0]='LBFGS'
@@ -1597,6 +1598,10 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
                 fo.write('     MAX_ITER  10000\n')
                 if(args.cp2k_opt_symmetry):
                     fo.write('     KEEP_SPACE_GROUP  T\n')
+                    if(hall_number>0):
+                        fo.write('     HALL_NUMBER  %d\n' % (hall_number))
+                    elif(dataset is not None):
+                        fo.write('     HALL_NUMBER  %d\n' % (dataset['hall_number']>0))
                 else:
                     fo.write('     KEEP_SPACE_GROUP  F\n')
                 fo.write('     EPS_SYMMETRY     1.0000000000000000E-04\n')
@@ -1627,6 +1632,7 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
                 fo.write('     &END PERIODIC_EFIELD\n')
                 continue
             if('&MM' in line):
+                isMM=True
                 fo.write( "%s" % (line))
                 uvw=dire
                 norm=la.norm(uvw)
@@ -1789,7 +1795,10 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
                 line=fi.readline()
                 continue
             for at in atoms:
-                fo.write( '%6s %25.16e %25.16e %25.16e\n' % ( at.el,at.x,at.y,at.z ) )
+                if(isMM):
+                    fo.write( '%6s %25.16e %25.16e %25.16e\n' % ( at.name,at.x,at.y,at.z ) )
+                else:
+                    fo.write( '%6s %25.16e %25.16e %25.16e\n' % ( at.el,at.x,at.y,at.z ) )
             fo.write("%s\n" % ('       UNIT angstrom'))
             if(isScaled):
                 fo.write("%s\n" % ('       SCALED  T'))
@@ -1819,7 +1828,7 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,args,dire):
     fo.close()
     return
 
-def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
+def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire):
     ks=['H','He','Li','Be','B','C','N','O','F','Ne','Na','Mg','Al','Si','P',
         'S','Cl','Ar','K','Ca','Sc','Ti','V','Cr','Mn','Fe','Co','Ni','Cu',
         'Zn','Ga','Ge','As','Se','Br','Kr','Rb','Sr','Y','Zr','Nb','Mo','Tc',
@@ -1844,8 +1853,8 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
             i=lel.index(at.el.strip())
             nel[i]+=1
     if(not isScaled):
-        isScaled=True
-        cart2frac(atoms,a,b,c)
+        print("Error: the coordinates should be fractional at this stage. Report issue to the developer.")
+        exit()
     wz(a,b,c)
     al=math.acos((b.x*c.x+b.y*c.y+b.z*c.z)/(b.norm*c.norm))*180./math.pi
     be=math.acos((a.x*c.x+a.y*c.y+a.z*c.z)/(a.norm*c.norm))*180./math.pi
@@ -1863,10 +1872,10 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
                 continue
             syst.append(Atom())
             cpAtom(syst[-1],atoms[i])
-        dataset=get_dataset(syst,hmat,args.hall_number[0])
+        dataset=get_dataset(syst,hmat,hall_number)
         del(syst)
     else:
-        dataset=get_dataset(atoms,hmat,args.hall_number[0])
+        dataset=get_dataset(atoms,hmat,hall_number)
     print(dataset['number'])
     if(dataset['number']<=2):
         if( math.fabs(90.0-al)<=1e-2 and math.fabs(90.0-be)<=1e-2 and math.fabs(90.0-ga)<=1e-2 ):
@@ -1926,6 +1935,10 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
         fo.write('     MAX_ITER  1000\n')
         if(args.cp2k_opt_symmetry):
             fo.write('     KEEP_SPACE_GROUP  T\n')
+            if(hall_number>0):
+                fo.write('     HALL_NUMBER  %d\n' % (hall_number))
+            elif(dataset is not None):
+                fo.write('     HALL_NUMBER  %d\n' % (dataset['hall_number']>0))
             fo.write('     EPS_SYMMETRY  1.0000000000000000E-04\n')
         if(args.cp2k_opt_angles):
             fo.write('     KEEP_ANGLES  T\n')
@@ -2106,7 +2119,7 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,args,dire):
     fo.close()
     return
 
-def writeCry(outName,atoms,a,b,c,args):
+def writeCry(outName,atoms,a,b,c,hall_number,args):
     ks=['H','He','Li','Be','B','C','N','O','F','Ne','Na','Mg','Al','Si','P',
         'S','Cl','Ar','K','Ca','Sc','Ti','V','Cr','Mn','Fe','Co','Ni','Cu',
         'Zn','Ga','Ge','As','Se','Br','Kr','Rb','Sr','Y','Zr','Nb','Mo','Tc',
@@ -2120,7 +2133,7 @@ def writeCry(outName,atoms,a,b,c,args):
     be=math.acos((a.x*c.x+a.y*c.y+a.z*c.z)/(a.norm*c.norm))*180./math.pi
     ga=math.acos((a.x*b.x+a.y*b.y+a.z*b.z)/(a.norm*b.norm))*180./math.pi
     hmat=[[a.x,a.y,a.z],[b.x,b.y,b.z],[c.x,c.y,c.z]]
-    dataset=get_dataset(atoms,hmat,args.hall_number[0])
+    dataset=get_dataset(atoms,hmat,hall_number)
     print(dataset['number'])
     equivalent_atoms=dataset['equivalent_atoms']
     fo=open(outName,'w')
@@ -2240,8 +2253,8 @@ def undoSuperCell(atoms,a,b,c,isScaled,sc):
     mc=sc[2]
 
     if(not isScaled):
-        cart2frac(atoms,a,b,c)
-        isScaled=True
+        print("Error: the coordinates should be fractional at this stage. Report issue to the developer.")
+        exit()
 
     ns=len(atoms)
     ne=int(len(atoms)/(ma*mb*mc))
@@ -2323,12 +2336,12 @@ def elastic_piezo_strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
     voigt=[[0,0],[1,1],[2,2],[2,1],[2,0],[1,0]]
     
     if(not isScaled):
-        cart2frac(atoms,a,b,c)
-        isScaled=True
+        print("Error: the coordinates should be fractional at this stage. Report issue to the developer.")
+        exit()
 
     basename=outName.split('.')[0]
     fname=basename+'.ref.inp'
-    io_write(inName,fname,atoms,a,b,c,isScaled,sysType,args,None)
+    io_write(inName,fname,atoms,a,b,c,isScaled,sysType,args.hall_number[0],args,None)
 
     hmat=np.zeros((3,3))
     hmat[0,0]=a.x
@@ -2347,6 +2360,7 @@ def elastic_piezo_strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
 
     k=0
     for v in voigt:
+        hall_number=args.hall_number_elastic_piezo[k]
         k+=1
         for n in numDev:
             e=np.identity(3)
@@ -2364,7 +2378,7 @@ def elastic_piezo_strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
             sc.z=hs[2,2]
             wz(sa,sb,sc)
             fname=basename+'.strain_'+str(k)+'_'+str(int(n))+'.inp'
-            io_write(inName,fname,atoms,sa,sb,sc,isScaled,sysType,args,None)
+            io_write(inName,fname,atoms,sa,sb,sc,isScaled,sysType,hall_number,args,None)
     return
 
 def dielectric_field(inName,outName,atoms,a,b,c,isScaled,sysType,args):
@@ -2372,19 +2386,19 @@ def dielectric_field(inName,outName,atoms,a,b,c,isScaled,sysType,args):
     ef=['x','y','z']
     basename=outName.split('.')[0]
     fname=basename+'.ref.inp'
-    io_write(inName,fname,atoms,a,b,c,isScaled,sysType,args,None)
+    io_write(inName,fname,atoms,a,b,c,isScaled,sysType,args.hall_number[0],args,None)
     for i in range(3):
         for n in numDev:
             fname=basename+'.efield_'+str(i+1)+'_'+str(int(n))+'.inp'
             dire=np.zeros((3))
             dire[i]=1.0*n
-            io_write(inName,fname,atoms,a,b,c,isScaled,sysType,args,dire)
+            io_write(inName,fname,atoms,a,b,c,isScaled,sysType,args.hall_number[0],args,dire)
     return
 
 def strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
     if(not isScaled):
-        cart2frac(atoms,a,b,c)
-        isScaled=True
+        print("Error: the coordinates should be fractional at this stage. Report issue to the developer.")
+        exit()
 
     hmat=np.zeros((3,3))
     hmat[0,0]=a.x
@@ -2436,7 +2450,7 @@ def strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
         sc.z=hs[2,2]
         wz(sa,sb,sc)
         fname=basename+'.'+args.strain_axis[0].strip()+'_'+str(s)+'.'+ext
-        io_write(inName,fname,atoms,sa,sb,sc,isScaled,sysType,args,None)
+        io_write(inName,fname,atoms,sa,sb,sc,isScaled,sysType,0,args,None)
     return
 
 def get_stress(inName,outName,args):
@@ -2759,15 +2773,15 @@ def io_read(inName):
     wz(a,b,c)
     return(atoms,a,b,c,isScaled,sysType,spg)
 
-def io_write(inName,outName,atoms,a,b,c,isScaled,sysType,args,dire):
+def io_write(inName,outName,atoms,a,b,c,isScaled,sysType,hall_number,args,dire):
     words=outName.split('.')
     ext=words[-1]
     if(args.asym):
         if(not isScaled):
-            cart2frac(atoms,a,b,c)
-            isScaled=True
+            print("Error: the coordinates should be fractional at this stage. Report issue to the developer.")
+            exit()
         hmat=[[a.x,a.y,a.z],[b.x,b.y,b.z],[c.x,c.y,c.z]]
-        dataset=get_dataset(atoms,hmat,args.hall_number[0])
+        dataset=get_dataset(atoms,hmat,hall_number)
         print(dataset['hall_number'],dataset['international'],dataset['pointgroup'])
         equivalent_atoms=dataset['equivalent_atoms']
         atmp=[]
@@ -2807,11 +2821,11 @@ def io_write(inName,outName,atoms,a,b,c,isScaled,sysType,args,dire):
             frac2cart(atoms,a,b,c)
         writeXyz(outName,atoms,a,b,c)
     elif(ext=='inp'):
-        writeCp2k(inName,outName,atoms,a,b,c,isScaled,args,dire)
+        writeCp2k(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire)
     elif(ext=='cry' or ext=='d12'):
         if(not isScaled):
             cart2frac(atoms,a,b,c)
-        writeCry(outName,atoms,a,b,c,args)
+        writeCry(outName,atoms,a,b,c,hall_number,args)
     elif(ext=='cif'):
         data=ase.io.read(inName)
         ase.io.write(outName,data)
@@ -2884,8 +2898,8 @@ def build_crystal(atoms,a,b,c,isScaled,hall_number):
 def find_symmetry(atoms,a,b,c,isScaled,hall_number):
     hmat=[[a.x,a.y,a.z],[b.x,b.y,b.z],[c.x,c.y,c.z]]
     if(not isScaled):
-        isScaled=True
-        cart2frac(atoms,a,b,c)
+        print("Error: the coordinates should be fractional at this stage. Report issue to the developer.")
+        exit()
     dset=get_dataset(atoms,hmat,hall_number)
     r=dset['rotations']
     t=dset['translations']
@@ -2894,6 +2908,7 @@ def find_symmetry(atoms,a,b,c,isScaled,hall_number):
         print(i+1,nop)
         for j in range(3):
             print("%2d %2d %2d %5.2f" % (r[i,j,0],r[i,j,1],r[i,j,2],t[i,j]))
+    return
 
 def get_dataset(atoms,hmat,hall_number):
     print(hall_number)
@@ -3242,8 +3257,8 @@ def get_tensors(inName,outName,atoms,a0,b0,c0,isScaled,args):
     hmat=[[a0.x,a0.y,a0.z],[b0.x,b0.y,b0.z],[c0.x,c0.y,c0.z]]
     
     if(not isScaled):
-        cart2frac(atoms,a0,b0,c0)
-        isScaled=True
+        print("Error: the coordinates should be fractional at this stage. Report issue to the developer.")
+        exit()
     
     th=np.transpose(hmat)
     tih=np.transpose(la.inv(hmat))
@@ -3588,6 +3603,7 @@ parser.add_argument('-asym',action='store_true',help='Print only the aymmetric u
 parser.add_argument('-bsym',action='store_true',help='Build the crystal unit cell from the aymmetric unit. A Hall number must be provided')
 parser.add_argument('-fsym',action='store_true',help='Find and print the space group number, Hall number, and symmetry operations.')
 parser.add_argument('-hn','--hall_number',nargs=1,type=int,default=[-1],help='Space group number used by Spglib, aka Hall number: 1-530. If provided it prevents the seach for the space group speeding up the symmetry section.')
+parser.add_argument('-hnelpi','--hall_number_elastic_piezo',nargs=6,type=int,default=[-1,-1,-1,-1,-1,-1],help='Space group number used by Spglib (aka Hall number: 1-530), for each of the 6 strains. If provided it prevents the seach for the space group speeding up the symmetry section.')
 parser.add_argument('-strain',action='store_true',help='Generate as series of strained systems along one of the crystallographic or cartesian axis.')
 parser.add_argument('-sv','--strain_values',type=float,nargs='+',default=[0.005, 0.01, 0.015, 0.02, 0.025, 0.04, 0.05,0.06, 0.08, 0.1, 0.12, 0.15, 0.18, 0.2, 0.25],help='Values for straining the system.')
 parser.add_argument('-sa','--strain_axis',nargs=1,choices=['a','b','c','al','be','ga','x','y','z','yz','xz','xy'],default=['c'],help='Axis along which to generate as series of strained systems.')
@@ -3611,6 +3627,7 @@ parser.add_argument('-cpef','--cp2k_dielectric_field',nargs=1,type=float,default
 parser.add_argument('-se','--symmetry_excluded',nargs=2,type=int,action='append',help='Range of atoms excluded from symmetry identification and enforcement. Keywords is repeatable.')
 parser.add_argument('-vaspelg','--vasp_elastic_get',action='store_true',help='Get the elastic tensor from VASP output file. This file is provided as an input')
 parser.add_argument('-vasppig','--vasp_piezo_get',action='store_true',help='Get the piezoelectric and dielectric tensors from VASP output file. This file is provided as an input. If both --vasp_elastic_get and --vasp_piezo_get are requested, the files are provided as a list of inputs with the piezoelectric file first.')
+parser.add_argument('-sam','--select_atom_names',nargs='+',help='List of the selected atom names to write in the output files.')
 
 args = parser.parse_args()
 
@@ -3626,6 +3643,22 @@ elif(args.getstress):
     exit()
 else:
     atoms,a,b,c,isScaled,sysType,spg=io_read(args.input[0])
+
+if(not isScaled):
+    isScaled=True
+    cart2frac(atoms,a,b,c)
+
+if(args.select_atom_names is not None):
+    tmp=[]
+    for at in atoms:
+        tmp.append(Atom())
+        cpAtom(tmp[-1],at)
+    atoms=[]
+    for at in tmp:
+        if(at.name.strip() in args.select_atom_names):
+            atoms.append(Atom())
+            cpAtom(atoms[-1],at)
+    del tmp
 
 if(args.fsym):
     find_symmetry(atoms,a,b,c,isScaled,args.hall_number[0])
@@ -3657,7 +3690,7 @@ elif(args.cp2k_elastic_piezo_get or args.cp2k_dielectric_get):
     get_tensors(args.input[0],args.output[0],atoms,a,b,c,isScaled,args)
 else:
     for outName in args.output:
-        io_write(args.input[0],outName,atoms,a,b,c,isScaled,sysType,args,None)
+        io_write(args.input[0],outName,atoms,a,b,c,isScaled,sysType,args.hall_number[0],args,None)
 
 exit()
 
