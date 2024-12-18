@@ -310,6 +310,7 @@ def readPdb(fName):
     atoms=[]
     i=0
     nter=1
+    spg='P1'
     for line in fi:
         if(line[0:6]=="REMARK"):
             continue
@@ -1372,11 +1373,13 @@ def readXyz(fName):
 def writeXyz(fName,atoms,a,b,c):
     fo=open(fName,'w')
     fo.write("%d\n" % (len(atoms)))
-    al=math.acos((b.x*c.x+b.y*c.y+b.z*c.z)/(b.norm*c.norm))*180./math.pi
-    be=math.acos((a.x*c.x+a.y*c.y+a.z*c.z)/(a.norm*c.norm))*180./math.pi
-    ga=math.acos((a.x*b.x+a.y*b.y+a.z*b.z)/(a.norm*b.norm))*180./math.pi
-    fo.write("%lf %lf %lf %lf %lf %lf\n" % (a.norm,b.norm,c.norm,al,be,ga))
-    #fo.write("%s\n" % ("system"))
+    if(a.norm>0.0 and b.norm>0.0 and c.norm>0.0):
+        al=math.acos((b.x*c.x+b.y*c.y+b.z*c.z)/(b.norm*c.norm))*180./math.pi
+        be=math.acos((a.x*c.x+a.y*c.y+a.z*c.z)/(a.norm*c.norm))*180./math.pi
+        ga=math.acos((a.x*b.x+a.y*b.y+a.z*b.z)/(a.norm*b.norm))*180./math.pi
+        fo.write("%lf %lf %lf %lf %lf %lf\n" % (a.norm,b.norm,c.norm,al,be,ga))
+    else:
+        fo.write("%s\n" % ("System"))
     for at in atoms:
         typeatom(at)
         fo.write("%s %20.10E %20.10E %20.10E\n" % (at.el,at.x,at.y,at.z))
@@ -1448,7 +1451,7 @@ def readCry(fName):
 def writeCp2k(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire):
     ext=inName.split('.')[-1]
     if(args.cp2k_template is not None):
-        writeCp2kTemplate(args.cp2k_template[0],outName,atoms,a,b,c,isScaled,hall_number,args,dire)
+        writeCp2kTemplate(args.cp2k_template,outName,atoms,a,b,c,isScaled,hall_number,args,dire)
     elif((ext=='inp') or (ext=='restart')):
         writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire)
     else:
@@ -1564,6 +1567,8 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire)
         words=line.split()
         if(line.strip()[0]=='#'):
             continue
+        if('&MM' in line):
+            isMM=True
         if('PROJECT_NAME' in line):
             title='   PROJECT_NAME '+basename.strip()
             fo.write('%s\n' % (title) ) 
@@ -1632,7 +1637,6 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire)
                 fo.write('     &END PERIODIC_EFIELD\n')
                 continue
             if('&MM' in line):
-                isMM=True
                 fo.write( "%s" % (line))
                 uvw=dire
                 norm=la.norm(uvw)
@@ -1806,6 +1810,10 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire)
                 fo.write("%s\n" % ('       SCALED  F'))
             fo.write( "%s" % (line))
             continue
+        if('COORD_FILE_NAME' in line):
+            continue
+        if('COORD_FILE_FORMAT' in line):
+            continue
         if('&KIND' in line):
             line=fi.readline()
             while('&END KIND' not in line):
@@ -1813,13 +1821,22 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire)
                 continue
             continue
         if('&END SUBSYS' in line):
-            for el in lel:
-                k=ks.index(el.strip())
-                fo.write("%s %s\n" % ('     &KIND',el.strip()))
-                basisSet='       BASIS_SET '+args.basisset[0].strip()+'-MOLOPT-SR-GTH-q'
-                fo.write("%s%s\n" % (basisSet,kn[k]))
-                fo.write("%s%s\n" % ('       POTENTIAL GTH-PBE-q',kn[k]))
-                fo.write("%s\n" % ('     &END KIND'))
+            if(isMM):
+                lnm=[]
+                for at in atoms:
+                    if(at.name.strip() not in lnm):
+                        fo.write("%s %s\n" % ('     &KIND',at.name.strip()))
+                        fo.write("%s %s\n" % ('       ELEMENT',at.el.strip()))
+                        fo.write("%s\n" % ('     &END KIND'))
+                        lnm.append(at.name.strip())
+            else:
+                for el in lel:
+                    k=ks.index(el.strip())
+                    fo.write("%s %s\n" % ('     &KIND',el.strip()))
+                    basisSet='       BASIS_SET '+args.basisset[0].strip()+'-MOLOPT-SR-GTH-q'
+                    fo.write("%s%s\n" % (basisSet,kn[k]))
+                    fo.write("%s%s\n" % ('       POTENTIAL GTH-PBE-q',kn[k]))
+                    fo.write("%s\n" % ('     &END KIND'))
             fo.write( "%s" % (line))
             continue
         fo.write( "%s" % (line))
@@ -1875,7 +1892,9 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire):
         dataset=get_dataset(syst,hmat,hall_number)
         del(syst)
     else:
+        print('Hall',hall_number)
         dataset=get_dataset(atoms,hmat,hall_number)
+        print('Hall',hall_number)
     print(dataset['number'])
     if(dataset['number']<=2):
         if( math.fabs(90.0-al)<=1e-2 and math.fabs(90.0-be)<=1e-2 and math.fabs(90.0-ga)<=1e-2 ):
@@ -1936,9 +1955,13 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire):
         if(args.cp2k_opt_symmetry):
             fo.write('     KEEP_SPACE_GROUP  T\n')
             if(hall_number>0):
-                fo.write('     HALL_NUMBER  %d\n' % (hall_number))
-            elif(dataset is not None):
-                fo.write('     HALL_NUMBER  %d\n' % (dataset['hall_number']>0))
+                if(dataset['hall_number']==hall_number):
+                    fo.write('     HALL_NUMBER  %d\n' % (hall_number))
+                else:
+                    print("WARNING: The provided Hall Number: %d is different found by symmetry analysis: %d. Using the former. Check the structure!" % (hall_number,dataset['hall_number']))
+                    fo.write('     HALL_NUMBER  %d\n' % (hall_number))
+            #elif(dataset is not None):
+            #    fo.write('     HALL_NUMBER  %d\n' % (dataset['hall_number']>0))
             fo.write('     EPS_SYMMETRY  1.0000000000000000E-04\n')
         if(args.cp2k_opt_angles):
             fo.write('     KEEP_ANGLES  T\n')
@@ -1986,6 +2009,10 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire):
     fo.write('     MULTIPLICITY  1\n')
     fo.write('     CHARGE  0\n')
     if(args.cpscf):
+        if(args.cpkp):
+            fo.write('     &KPOINTS\n')
+            fo.write('       SCHEME MONKHORST-PACK %d %d %d\n' % (math.ceil(24./a.norm),math.ceil(24./b.norm),math.ceil(24./c.norm)))
+            fo.write('     &END KPOINTS\n')
         fo.write('     &SCF\n')
         if(args.cp2k_ot_algo[0].strip()=='RESTART'):
             fc=inName.split('.')[0]
@@ -2001,7 +2028,7 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire):
             fo.write('       SCF_GUESS %s\n' % (args.cp2k_ot_algo[0].strip()))
         else:
             fo.write('       SCF_GUESS ATOMIC\n')
-        fo.write('       ADDED_MOS 100')
+        fo.write('       ADDED_MOS 100\n')
         fo.write('       &SMEAR ON\n')
         fo.write('         METHOD FERMI_DIRAC\n')
         fo.write('         ELECTRONIC_TEMPERATURE [K] 300\n')
@@ -2088,7 +2115,8 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire):
     fo.write('       C  %25.16e %25.16e %25.16e\n' % (c.x,c.y,c.z) )
     fo.write('       PERIODIC  XYZ\n')
     fo.write('       SYMMETRY %s\n' % (bravais_lattice.strip()))
-    fo.write('       MULTIPLE_UNIT_CELL %d %d %d\n' % (math.ceil(18./a.norm),math.ceil(18./b.norm),math.ceil(18./c.norm)))
+    if(not args.cpkp):
+        fo.write('       MULTIPLE_UNIT_CELL %d %d %d\n' % (math.ceil(18./a.norm),math.ceil(18./b.norm),math.ceil(18./c.norm)))
     fo.write('     &END CELL\n')
     fo.write('     &COORD\n')
     for at in atoms:
@@ -2101,7 +2129,8 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire):
     fo.write('     &END COORD\n')
     fo.write('     &TOPOLOGY\n')
     fo.write('       NUMBER_OF_ATOMS %d\n' % (len(atoms)))
-    fo.write('       MULTIPLE_UNIT_CELL %d %d %d\n' % (math.ceil(18./a.norm),math.ceil(18./b.norm),math.ceil(18./c.norm)))
+    if(not args.cpkp):
+        fo.write('       MULTIPLE_UNIT_CELL %d %d %d\n' % (math.ceil(18./a.norm),math.ceil(18./b.norm),math.ceil(18./c.norm)))
     fo.write('     &END TOPOLOGY\n')
     for el in lel:
         k=ks.index(el.strip())
@@ -2291,14 +2320,15 @@ def SuperCell(atoms,a,b,c,isScaled,sc):
         isScaled=False
 
     m=0
+    syst=[]
     ns=len(atoms)
     ne=ns*(ma*mb*mc)
     for l in range(mc):
         for k in range(mb):
             for j in range(ma):
                 for i in range(ns):
-                    atoms.append(Atom())
-                    cpAtom(atoms[-1],atoms[i])
+                    syst.append(Atom())
+                    cpAtom(syst[-1],atoms[i])
                     if(i==0 and j==0 and k==0 and l==0):
                         oldr=atoms[i].resIdx
                         nr=1
@@ -2306,12 +2336,12 @@ def SuperCell(atoms,a,b,c,isScaled,sc):
                         nr+=1
                     oldr=atoms[i].resIdx
                     chain=chainList[((nr-1) % int(len(chainList)/3))]
-                    atoms[-1].idx=m+1
-                    atoms[-1].resIdx=nr
-                    atoms[-1].chain=chain
-                    atoms[-1].x=atoms[i].x+j*a.x+k*b.x+l*c.x
-                    atoms[-1].y=atoms[i].y+j*a.y+k*b.y+l*c.y
-                    atoms[-1].z=atoms[i].z+j*a.z+k*b.z+l*c.z
+                    syst[-1].idx=m+1
+                    syst[-1].resIdx=nr
+                    syst[-1].chain=chain
+                    syst[-1].x=atoms[i].x+j*a.x+k*b.x+l*c.x
+                    syst[-1].y=atoms[i].y+j*a.y+k*b.y+l*c.y
+                    syst[-1].z=atoms[i].z+j*a.z+k*b.z+l*c.z
                     m+=1
 
     a.x*=float(ma)
@@ -2326,10 +2356,10 @@ def SuperCell(atoms,a,b,c,isScaled,sc):
     wz(a,b,c)
 
     if(not isScaled):
-        cart2frac(atoms,a,b,c)
+        cart2frac(syst,a,b,c)
         isScaled=True
 
-    return(atoms,a,b,c)
+    return(syst,a,b,c)
 
 def elastic_piezo_strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
     numDev=[-1.0,1.0]
@@ -2740,7 +2770,7 @@ def get_de(inName):
     return dec,der
 
 def io_read(inName):
-    sysType=''
+    sysType='C'
     isScaled=False
     words=inName.split('.')
     ext=words[-1]
@@ -2765,12 +2795,14 @@ def io_read(inName):
     elif(ext=='cif'):
         atoms,a,b,c=readCif(inName)
         isScaled=False
-    elif(ext=='POSCAR' or ext=="poscar" or ext=="vasp" or ('POSCAR' in inName)):
+    elif(ext=='POSCAR' or ext=="poscar" or ext=="vasp" or ('POSCAR' in inName) or ext=='CONTCAR' or ('CONTCAR' in inName)):
         atoms,a,b,c,isScaled=readPoscar(inName)
     elif(ext=='restart' or ext=='inp'):
         atoms,isScaled=getCoordCP2K(inName)
         a,b,c=getBoxCP2K(inName)
     wz(a,b,c)
+    if(a.norm>0.0 and b.norm>0.0 and c.norm>0.0):
+        sysType='F'
     return(atoms,a,b,c,isScaled,sysType,spg)
 
 def io_write(inName,outName,atoms,a,b,c,isScaled,sysType,hall_number,args,dire):
@@ -2809,12 +2841,12 @@ def io_write(inName,outName,atoms,a,b,c,isScaled,sysType,hall_number,args,dire):
             frac2cart(atoms,a,b,c)
         writeGro(outName,atoms,a,b,c)
     elif(ext=='gen'):
-        if(isScaled):
-            sysType='F'
+        if(isScaled and (sysType=='F')):
+            writeGen(outName,atoms,a,b,c,sysType)
+        elif(sysType=='F'):
+            cart2frac(atoms,a,b,c)
             writeGen(outName,atoms,a,b,c,sysType)
         else:
-            sysType='F'
-            cart2frac(atoms,a,b,c)
             writeGen(outName,atoms,a,b,c,sysType)
     elif(ext=='xyz'):
         if(isScaled):
@@ -2840,6 +2872,7 @@ def io_write(inName,outName,atoms,a,b,c,isScaled,sysType,hall_number,args,dire):
 def build_crystal(atoms,a,b,c,isScaled,hall_number):
     hmat=[[a.x,a.y,a.z],[b.x,b.y,b.z],[c.x,c.y,c.z]]
     if(not isScaled):
+        print("build_crystal: not scaled")
         isScaled=True
         cart2frac(atoms,a,b,c)
     dset=get_dataset(atoms,hmat,hall_number)
@@ -2854,6 +2887,7 @@ def build_crystal(atoms,a,b,c,isScaled,hall_number):
         t=tr[i]
         pn+=1
         refs=''
+        print(r,t)
         for at in atoms:
             idx+=1
             syst.append(Atom())
@@ -2914,6 +2948,13 @@ def get_dataset(atoms,hmat,hall_number):
     print(hall_number)
     if(hall_number>0):
         dataset = sg.get_symmetry_from_database(hall_number)
+        r=dataset['rotations']
+        t=dataset['translations']
+        nop=len(r)
+        for i in range(nop):
+            print(i+1,nop)
+            for j in range(3):
+                print("%2d %2d %2d %5.2f" % (r[i,j,0],r[i,j,1],r[i,j,2],t[i,j]))
     else:
         xyz=[]
         ele=[]
@@ -2926,9 +2967,10 @@ def get_dataset(atoms,hmat,hall_number):
             ii=ele.index(at.el.strip())
             kinds.append(ii+1)
         cell=(hmat,xyz,kinds)
-        dataset = sg.get_symmetry_dataset(cell, symprec=5e-3, hall_number=0)
+        dataset = sg.get_symmetry_dataset(cell, symprec=1e-4, hall_number=0)
         print("Hall number:",dataset['hall_number'])
-        print("International number:",dataset['international'])
+        print("International number:",dataset['number'])
+        print("International symbol:",dataset['international'])
         print("Point group:",dataset['pointgroup'])
         if(dataset==None):
             print("Spglib failed with the following error message:",sg.get_error_message())
@@ -2954,7 +2996,7 @@ def get_rotations(atoms,hmat,hall_number):
         if(dataset==None):
             print("Spglib failed with the following error message:",sg.get_error_message())
             exit()
-    print(dataset['hall_number'],dataset['international'],dataset['pointgroup'])
+    print(dataset['hall_number'],dataset['number'],dataset['international'],dataset['pointgroup'])
     return(dataset['rotations'])
 
 def get_rotations_subset(atoms,hmat,hall_number):
@@ -3526,7 +3568,7 @@ def print_tensors_vasp(outName,args,e,eci,eri,c,ci,d,de,dec,der,g,kv,yv,gv,pv,kr
         for i in range(6):
             fo.write('%2d' % (i+1))
             for k in range(6):
-                fo.write('%16.8lf' % (cv[i][k]))
+                fo.write('%16.8lf' % (c[i][k]))
             fo.write('\n')
         fo.write('\n')
     
@@ -3616,13 +3658,14 @@ parser.add_argument('-cpoptbr','--cp2k_opt_bravais',action='store_true',help='Wh
 parser.add_argument('-cpoptsy','--cp2k_opt_symmetry',action='store_true',help='Whether the space group is conserved or not.')
 parser.add_argument('-cptp','--cp2k_template',help='Template file for CP2K software if interested in different options.')
 parser.add_argument('-cpscf',action='store_true',help='Use standard diagonalization instead of Orbital Transformation in CP2K calculations.')
+parser.add_argument('-cpkp',action='store_true',help='Use k-points instead of supercell.')
 parser.add_argument('-xc','--exchange_correlation',nargs=1,choices=['BLYP','B3LYP','PBE','PBE0','DEFAULT'],default=['DEFAULT'],help='Exchange-correlation functional. This is a snall selection of the most common functional found in all DFT software. Check the manual of your DFT software for the full rannge of its capabilities, and edit the input file accordingly. DEFAULT corresponds to whatever is provided in the input/template or PBE.')
 parser.add_argument('-bs','--basisset',nargs=1,choices=['DZVP','TZVP'],default=['DZVP'],help='Basis set. This is a snall selection of the most basis sets found in all DFT software. Check the manual of your DFT software for the full rannge of its capabilities, and edit the input file accordingly.')
 parser.add_argument('-cpelpi','--cp2k_elastic_piezo',action='store_true',help='Generate as series of strain of the system to obtain the elastic and piezolectric tensors with CP2K.')
 parser.add_argument('-cpdie','--cp2k_dielectric',action='store_true',help='Generate as series of variations of the electric field to obtain the dielectric tensor with CP2K.')
 parser.add_argument('-cpelpig','--cp2k_elastic_piezo_get',action='store_true',help='Get the piezoelectric and elastic tensors from a series of strain of the system.')
 parser.add_argument('-cpdieg','--cp2k_dielectric_get',action='store_true',help='Get the dielectric tensor from a series of variations of the electric field.')
-parser.add_argument('-cpst','--cp2k_elastic_piezo_step',nargs=1,type=float,default=[1.e-2],help='Strain percentage for the calculation of the elastic and piezolectric tensors with CP2K.')
+parser.add_argument('-cpst','--cp2k_elastic_piezo_step',nargs=1,type=float,default=[1.e-2],help='Strain for the calculation of the elastic and piezolectric tensors with CP2K.')
 parser.add_argument('-cpef','--cp2k_dielectric_field',nargs=1,type=float,default=[2.e-4],help='Field step for the calculation of dielectric tensor with CP2K.')
 parser.add_argument('-se','--symmetry_excluded',nargs=2,type=int,action='append',help='Range of atoms excluded from symmetry identification and enforcement. Keywords is repeatable.')
 parser.add_argument('-vaspelg','--vasp_elastic_get',action='store_true',help='Get the elastic tensor from VASP output file. This file is provided as an input')
@@ -3644,7 +3687,7 @@ elif(args.getstress):
 else:
     atoms,a,b,c,isScaled,sysType,spg=io_read(args.input[0])
 
-if(not isScaled):
+if(not isScaled and a.norm>0.0 and b.norm>0.0 and c.norm>0.0):
     isScaled=True
     cart2frac(atoms,a,b,c)
 
