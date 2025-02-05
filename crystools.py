@@ -17,8 +17,8 @@
 #################################################################################
 
 #################################################################################
-# crystools.py written by P.-A. Cazade                                          #
-# Copyright (C) 2019 - 2024  P.-A. Cazade                                       #
+# CrysTools.py written by P.-A. Cazade                                          #
+# Copyright (C) 2019 - 2025  P.-A. Cazade                                       #
 #################################################################################
 
 import os
@@ -57,6 +57,64 @@ class Atom(object):
     nAt=0
     el=' '
     sig=2.0
+
+class Cell:
+    def __init__(self):
+        self.a=0.0
+        self.b=0.0
+        self.c=0.0
+        self.al=0.0
+        self.be=0.0
+        self.ga=0.0
+        self.hmat=np.zeros((3,3))
+
+    def lp2box(self,a,b,c,al,be,ga):
+        self.a=a
+        self.b=b
+        self.c=c
+        self.al=al
+        self.be=be
+        self.ga=ga
+        degtorad=math.pi/180.0
+        if (al==90.0):
+            cosa=0.0
+        else:
+            alp=al*degtorad
+            cosa=math.cos(alp)
+        if(be==90.0):
+            cosb=0.0
+        else:
+            bet=be*degtorad
+            cosb=math.cos(bet)
+        if (ga==90.0):
+            sing=1.0
+            cosg=0.0
+        else:
+            gam=ga*degtorad
+            sing=math.sin(gam)
+            cosg=math.cos(gam)
+        self.hmat[0,1]=0.0
+        self.hmat[0,2]=0.0
+        self.hmat[1,2]=0.0
+        self.hmat[0,0]=a
+        self.hmat[1,0]=b*cosg
+        self.hmat[1,1]=b*sing
+        self.hmat[2,0]=c*cosb
+        self.hmat[2,1]=c*(cosa-cosg*cosb)/sing
+        t=cc.y/c
+        self.hmat[2,2]=c*math.sqrt(1.0-(cosb*cosb)-(t*t))
+
+    def mat2box(self,hmat):
+        rad2deg=180.0/math.pi
+        for i in range(3):
+            for j in range(3):
+                self.hmat[i,j]=hmat[i,j]
+        self.a=la.norm(hmat[0])
+        self.b=la.norm(hmat[1])
+        self.c=la.norm(hmat[2])
+        al=rad2deg*math.acos(np.sum(hmat[1]*hmat[2])/(self.b*self.c))
+        be=rad2deg*math.acos(np.sum(hmat[0]*hmat[2])/(self.a*self.c))
+        ga=rad2deg*math.acos(np.sum(hmat[0]*hmat[1])/(self.a*self.b))
 
 class lattice_vect(object):
     norm=0.0
@@ -174,6 +232,20 @@ def crystobox(words):
     t=cc.y/c
     cc.z=c*math.sqrt(1.0-(cosb*cosb)-(t*t))
     return(aa,bb,cc)
+
+def boxtocrys(a,b,c):
+    a.norm=math.sqrt((a.x*a.x)+(a.y*a.y)+(a.z*a.z))
+    b.norm=math.sqrt((b.x*b.x)+(b.y*b.y)+(b.z*b.z))
+    c.norm=math.sqrt((c.x*c.x)+(c.y*c.y)+(c.z*c.z))
+    if(a.norm>0. and b.norm>0. and c.norm>0.):
+        al=math.acos((b.x*c.x+b.y*c.y+b.z*c.z)/(b.norm*c.norm))*180./math.pi
+        be=math.acos((a.x*c.x+a.y*c.y+a.z*c.z)/(a.norm*c.norm))*180./math.pi
+        ga=math.acos((a.x*b.x+a.y*b.y+a.z*b.z)/(a.norm*b.norm))*180./math.pi
+    else:
+        al=90.
+        be=90.
+        ga=90.
+    return(a,norm,b.norm,c.norm,al,be,ga)
 
 def cpzmat(zmat,atom):
     atom.idx=zmat.idx
@@ -3632,11 +3704,35 @@ def print_tensors_vasp(outName,args,e,eci,eri,c,ci,d,de,dec,der,g,kv,yv,gv,pv,kr
     fo.close()
     return
 
+def box_padding(atoms,a,b,c,isScaled,args):
+    if(isScaled):
+        frac2cart(atoms,a,b,c)
+        isScaled=False
+    for at in atoms:
+        at.x+=args.padding[0]*0.5
+        at.y+=args.padding[1]*0.5
+        at.z+=args.padding[2]*0.5
+    fa=1.0+(args.padding[0]/a.norm)
+    fb=1.0+(args.padding[1]/b.norm)
+    fc=1.0+(args.padding[0]/c.norm)
+    a.x*=fa
+    a.y*=fa
+    a.z*=fa
+    b.x*=fb
+    b.y*=fb
+    b.z*=fb
+    c.x*=fc
+    c.y*=fc
+    c.z*=fc
+    wz(a,b,c)
+    return(atoms,a,b,c,isScaled)
+
 # Program begins here:
 
 parser=ap.ArgumentParser(prog='crystools',description='Convert between various structure and input file formats. Generate perturbations for piezoelectric and elastic properties. When the requested output file is in CP2K format, if a template is provided together with an input file in CP2K format, the keywords found in the tenplate are used with the structure cointained in the input. Any additional argumnet like -d3 will overwrite what is present in the template',epilog='Please repport any bugs to P.-A. Cazade at pierre.cazade@ul.ie.')
 parser.add_argument('-i','--input',nargs='+',required=True,help='Input file(s). Format: CIF(.cif), PDB (.pdb), GROMACS (.gro), Cartesian (.xyz), DFTB+ (.gen), VASP (POSCAR, .poscar, .vasp), CP2K (.inp, .restart),Crystal23 (.cry, .d12)')
 parser.add_argument('-o','--output',nargs='+',required=True,help='Output file(s). Format: CIF(.cif), PDB (.pdb), GROMACS (.gro), Cartesian (.xyz), DFTB+ (.gen), VASP (POSCAR, .poscar, .vasp), CP2K (.inp, .restart),Crystal23 (.cry, .d12)')
+parser.add_argument('-pad', '--padding',type=float,nargs=3,default=[0.0,0.0,0.0],help='Increase the size of the crystal box by increasing the a, b, and c parameters. This breaks the symmetry of the crystal.')
 parser.add_argument('-sc', '--super_cell',type=int,nargs=3,default=[1,1,1],help='Number of replicas in each direction to make or reverse a supercell.')
 parser.add_argument('-msc', '--make_super_cell',nargs=1,choices=['no','do','undo'],default=['no'],help='Whether to do nothing (no), make (do), or reverse (undo) a supercell.')
 parser.add_argument('-sd',action='store_true',help='Selective Dynamics for VASP.')
@@ -3732,6 +3828,8 @@ elif(args.cp2k_dielectric):
 elif(args.cp2k_elastic_piezo_get or args.cp2k_dielectric_get):
     get_tensors(args.input[0],args.output[0],atoms,a,b,c,isScaled,args)
 else:
+    if( (args.padding[0]>1e-8) or (args.padding[1]>1e-8) or (args.padding[1]>1e-8) ):
+        atoms,a,b,c,isScaled=box_padding(atoms,a,b,c,isScaled,args)
     for outName in args.output:
         io_write(args.input[0],outName,atoms,a,b,c,isScaled,sysType,args.hall_number[0],args,None)
 
