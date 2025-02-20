@@ -1657,6 +1657,10 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire)
             run='   RUN_TYPE GEO_OPT'
             fo.write('%s\n' % (run) ) 
             continue
+        elif(args.cp2k_opt[0].strip()=='NONE'):
+            run='   RUN_TYPE FORCE_EVAL'
+            fo.write('%s\n' % (run) ) 
+            continue
         if(args.cp2k_elastic_piezo or args.strain or args.cp2k_dielectric or (args.cp2k_opt[0].strip()=='IONS')):
             if('&MOTION' in line):
                 fo.write( "%s" % (line))
