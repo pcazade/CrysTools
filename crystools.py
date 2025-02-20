@@ -31,6 +31,7 @@ import numpy.linalg as la
 import ase.io
 import spglib as sg
 import argparse as ap
+import numba as nb
 
 class Atom(object):
     header="ATOM  "
@@ -67,6 +68,7 @@ class Cell:
         self.be=0.0
         self.ga=0.0
         self.hmat=np.zeros((3,3))
+        self.gmat=np.zeros((3,3))
 
     def lp2box(self,a,b,c,al,be,ga):
         self.a=a
@@ -103,6 +105,7 @@ class Cell:
         self.hmat[2,1]=c*(cosa-cosg*cosb)/sing
         t=cc.y/c
         self.hmat[2,2]=c*math.sqrt(1.0-(cosb*cosb)-(t*t))
+        self.gmat=la.inv(self.hmat)
 
     def mat2box(self,hmat):
         rad2deg=180.0/math.pi
@@ -452,16 +455,21 @@ def writePdb(fName,atoms,a,b,c):
     fo.write("CRYST1%9.3f%9.3f%9.3f%7.2f%7.2f%7.2f%11s%4d\n" % (a.norm,b.norm,c.norm,al,be,ga,'P1',1))
     oldChain=atoms[0].chain
     oldResIdx=atoms[0].resIdx
+    nr=1
+    na=1
     for at in atoms:
         typeatom(at)
-        if(at.idx<=99999):
-            if(at.resIdx>9999):
-                at.resIdx=(at.resIdx%10000)+1
-            fo.write("%6s%5d %4s %4s%c%4d    %8.3f%8.3f%8.3f%6.2f%6.2f      %-4s%-2s\n" % (at.header,at.idx,at.name,at.resName,at.chain,at.resIdx,at.x,at.y,at.z,at.occ,at.beta,at.segName,at.el))
-        else:
-            if(at.resIdx>9999):
-                at.resIdx=(at.resIdx%10000)+1
-            fo.write("%6s%5x %4s %4s%c%4d    %8.3f%8.3f%8.3f%6.2f%6.2f      %-4s%-2s\n" % (at.header,at.idx,at.name,at.resName,at.chain,at.resIdx,at.x,at.y,at.z,at.occ,at.beta,at.segName,at.el))
+        if(at.resIdx!=oldResIdx):
+            nr=nr+1
+            oldResIdx=at.resIdx
+        if(nr>9999):
+            nr=1
+        at.resIdx=nr
+        at.idx=na
+        fo.write("%6s%5d %4s %4s%c%4d    %8.3f%8.3f%8.3f%6.2f%6.2f      %-4s%-2s\n" % (at.header,at.idx,at.name,at.resName,at.chain,at.resIdx,at.x,at.y,at.z,at.occ,at.beta,at.segName,at.el))
+        na+=1
+        if(na>99999):
+            na=1
     fo.write("END\n")
     fo.close()
     return
@@ -1695,6 +1703,13 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire)
                 fo.write('   &END GEO_OPT\n')
                 fo.write('%s' % (line))
                 continue
+        elif(args.cp2k_opt[0].strip()=='NONE'):
+            if('&MOTION' in line):
+                line=fi.readline()
+                while('&END MOTION' not in line):
+                    line=fi.readline()
+                    continue
+                continue
         if(args.cp2k_dielectric and (dire is not None)):
             if(('STRESS_TENSOR' in line)):
                 continue
@@ -2018,51 +2033,54 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire):
         fo.write('   RUN_TYPE  %s\n' % ('CELL_OPT'))
     elif(args.cp2k_opt[0].strip()=='IONS'):
         fo.write('   RUN_TYPE  %s\n' % ('GEO_OPT'))
+    elif(args.cp2k_opt[0].strip()=='NONE'):
+        fo.write('   RUN_TYPE  %s\n' % ('FORCE_EVAL'))
     fo.write(' &END GLOBAL\n')
-    fo.write(' &MOTION\n')
-    if(args.cp2k_opt[0].strip()=='CELL'):
-        fo.write('   &CELL_OPT\n')
-        fo.write('     OPTIMIZER  %s\n' % (args.cp2k_opt_algo[0].strip()))
-        fo.write('     MAX_ITER  1000\n')
-        if(args.cp2k_opt_symmetry):
-            fo.write('     KEEP_SPACE_GROUP  T\n')
-            if(hall_number>0):
-                if(dataset['hall_number']==hall_number):
-                    fo.write('     HALL_NUMBER  %d\n' % (hall_number))
-                else:
-                    print("WARNING: The provided Hall Number: %d is different found by symmetry analysis: %d. Using the former. Check the structure!" % (hall_number,dataset['hall_number']))
-                    fo.write('     HALL_NUMBER  %d\n' % (hall_number))
-            #elif(dataset is not None):
-            #    fo.write('     HALL_NUMBER  %d\n' % (dataset['hall_number']>0))
-            fo.write('     EPS_SYMMETRY  1.0000000000000000E-04\n')
-        if(args.cp2k_opt_angles):
-            fo.write('     KEEP_ANGLES  T\n')
-        else:
-            fo.write('     KEEP_ANGLES  F\n')
-        if(args.cp2k_opt_bravais):
-            fo.write('     KEEP_SYMMETRY  T\n')
-        else:
-            fo.write('     KEEP_SYMMETRY  F\n')
-        if(args.symmetry_excluded is not None):
-            for al in args.symmetry_excluded:
-                fo.write('     SYMM_EXCLUDE_RANGE %d %d\n' % (al[0],al[1]))
-        if(dire is not None):
-                fo.write('     SYMM_REDUCTION %lf %lf %lf\n' % (dire[0],dire[1],dire[2]))
-        fo.write('   &END CELL_OPT\n')
-    elif(args.cp2k_opt[0].strip()=='IONS'):
-        fo.write('   &GEO_OPT\n')
-        fo.write('     OPTIMIZER  %s\n' % (args.cp2k_opt_algo[0].strip()))
-        fo.write('     MAX_ITER  1000\n')
-        if(args.cp2k_opt_symmetry):
-            fo.write('     KEEP_SPACE_GROUP  T\n')
-            fo.write('     EPS_SYMMETRY  1.0000000000000000E-04\n')
-        if(args.symmetry_excluded is not None):
-            for al in args.symmetry_excluded:
-                fo.write('     SYMM_EXCLUDE_RANGE %d %d\n' % (al[0],al[1]))
-        if(dire is not None):
-                fo.write('     SYMM_REDUCTION %lf %lf %lf\n' % (dire[0],dire[1],dire[2]))
-        fo.write('   &END GEO_OPT\n')
-    fo.write(' &END MOTION\n')
+    if('NONE' not in args.cp2k_opt[0].strip()):
+        fo.write(' &MOTION\n')
+        if(args.cp2k_opt[0].strip()=='CELL'):
+            fo.write('   &CELL_OPT\n')
+            fo.write('     OPTIMIZER  %s\n' % (args.cp2k_opt_algo[0].strip()))
+            fo.write('     MAX_ITER  1000\n')
+            if(args.cp2k_opt_symmetry):
+                fo.write('     KEEP_SPACE_GROUP  T\n')
+                if(hall_number>0):
+                    if(dataset['hall_number']==hall_number):
+                        fo.write('     HALL_NUMBER  %d\n' % (hall_number))
+                    else:
+                        print("WARNING: The provided Hall Number: %d is different found by symmetry analysis: %d. Using the former. Check the structure!" % (hall_number,dataset['hall_number']))
+                        fo.write('     HALL_NUMBER  %d\n' % (hall_number))
+                #elif(dataset is not None):
+                #    fo.write('     HALL_NUMBER  %d\n' % (dataset['hall_number']>0))
+                fo.write('     EPS_SYMMETRY  1.0000000000000000E-04\n')
+            if(args.cp2k_opt_angles):
+                fo.write('     KEEP_ANGLES  T\n')
+            else:
+                fo.write('     KEEP_ANGLES  F\n')
+            if(args.cp2k_opt_bravais):
+                fo.write('     KEEP_SYMMETRY  T\n')
+            else:
+                fo.write('     KEEP_SYMMETRY  F\n')
+            if(args.symmetry_excluded is not None):
+                for al in args.symmetry_excluded:
+                    fo.write('     SYMM_EXCLUDE_RANGE %d %d\n' % (al[0],al[1]))
+            if(dire is not None):
+                    fo.write('     SYMM_REDUCTION %lf %lf %lf\n' % (dire[0],dire[1],dire[2]))
+            fo.write('   &END CELL_OPT\n')
+        elif(args.cp2k_opt[0].strip()=='IONS'):
+            fo.write('   &GEO_OPT\n')
+            fo.write('     OPTIMIZER  %s\n' % (args.cp2k_opt_algo[0].strip()))
+            fo.write('     MAX_ITER  1000\n')
+            if(args.cp2k_opt_symmetry):
+                fo.write('     KEEP_SPACE_GROUP  T\n')
+                fo.write('     EPS_SYMMETRY  1.0000000000000000E-04\n')
+            if(args.symmetry_excluded is not None):
+                for al in args.symmetry_excluded:
+                    fo.write('     SYMM_EXCLUDE_RANGE %d %d\n' % (al[0],al[1]))
+            if(dire is not None):
+                    fo.write('     SYMM_REDUCTION %lf %lf %lf\n' % (dire[0],dire[1],dire[2]))
+            fo.write('   &END GEO_OPT\n')
+        fo.write(' &END MOTION\n')
     fo.write(' &FORCE_EVAL\n')
     fo.write('   METHOD  QS\n')
     if(dire is None):
@@ -3727,6 +3745,20 @@ def box_padding(atoms,a,b,c,isScaled,args):
     wz(a,b,c)
     return(atoms,a,b,c,isScaled)
 
+@nb.jit(nopython=True, parallel=True, fastmath=True)
+def rlist(xyz,rMin):
+    for i in range(len(xyz)-1):
+        #ri=np.array([xyz[i][0],xyz[i][1],xyz[i][2]])
+        for j in range(i+1,len(xyz)):
+            r=xyz[j]-xyz[0]
+            r[0]-=round(r[0])
+            r[1]-=round(r[1])
+            r[2]-=round(r[2])
+            if(la.norm(r)<rMin):
+                print(i+1,j+1,la.norm(r),rMin)
+            r=None
+    return
+
 # Program begins here:
 
 parser=ap.ArgumentParser(prog='crystools',description='Convert between various structure and input file formats. Generate perturbations for piezoelectric and elastic properties. When the requested output file is in CP2K format, if a template is provided together with an input file in CP2K format, the keywords found in the tenplate are used with the structure cointained in the input. Any additional argumnet like -d3 will overwrite what is present in the template',epilog='Please repport any bugs to P.-A. Cazade at pierre.cazade@ul.ie.')
@@ -3747,7 +3779,7 @@ parser.add_argument('-sv','--strain_values',type=float,nargs='+',default=[0.005,
 parser.add_argument('-sa','--strain_axis',nargs=1,choices=['a','b','c','al','be','ga','x','y','z','yz','xz','xy'],default=['c'],help='Axis along which to generate as series of strained systems.')
 parser.add_argument('-getstress',action='store_true',help='Read the stress from the output files of as series of strained systems along one of the crystallographic or cartesian axis. The results are stored in outName and the stress tensor for the unstrained system is read in inName. For VASP, input file must be name OUTCAR, for the series of strains, files are expected to be named OUTCAR.[strained value]. E.g. OUTCAR.0.1')
 parser.add_argument('-cpot','--cp2k_ot_algo',nargs=1,choices=['STRICT','IRAC','RESTART'],default=['STRICT'],help='Algorithm to ensure convergence of the Choleski decomposition. For difficult systems, use IRAC or RESTART. For RESTART, you need to have the wavefunction file from a previous calculation for the system of interest. This file should have the same basename as the input file with the extension .wfn.')
-parser.add_argument('-cpopt','--cp2k_opt',nargs=1,choices=['CELL','IONS'],default=['CELL'],help='Optimization approach: full cell and ionic positions (CELL), or only the ionic positions (IONS).')
+parser.add_argument('-cpopt','--cp2k_opt',nargs=1,choices=['CELL','IONS','NONE'],default=['CELL'],help='Optimization approach: full cell and ionic positions (CELL), or only the ionic positions (IONS), or no geometry optimization (NONE).')
 parser.add_argument('-cpoptal','--cp2k_opt_algo',nargs=1,choices=['BFGS','CG'],default=['BFGS'],help='Optimization algorithm. If the number of atoms exceeds 999, BFGS is changed to its linearized version LBFGS.')
 parser.add_argument('-cpoptan','--cp2k_opt_angles',action='store_true',help='Whether the angles of the lattice are allowed to relax.')
 parser.add_argument('-cpoptbr','--cp2k_opt_bravais',action='store_true',help='Whether the bravais lattice is conserved or not.')
@@ -3767,6 +3799,7 @@ parser.add_argument('-se','--symmetry_excluded',nargs=2,type=int,action='append'
 parser.add_argument('-vaspelg','--vasp_elastic_get',action='store_true',help='Get the elastic tensor from VASP output file. This file is provided as an input')
 parser.add_argument('-vasppig','--vasp_piezo_get',action='store_true',help='Get the piezoelectric and dielectric tensors from VASP output file. This file is provided as an input. If both --vasp_elastic_get and --vasp_piezo_get are requested, the files are provided as a list of inputs with the piezoelectric file first.')
 parser.add_argument('-sam','--select_atom_names',nargs='+',help='List of the selected atom names to write in the output files.')
+parser.add_argument('-check',action='store_true',help='Check that the distance bewteen atoms is at least 0.5 A.')
 
 args = parser.parse_args()
 
@@ -3786,6 +3819,23 @@ else:
 if(not isScaled and a.norm>0.0 and b.norm>0.0 and c.norm>0.0):
     isScaled=True
     cart2frac(atoms,a,b,c)
+
+if(args.check):
+    if(not isScaled):
+        print("Error, the coordinates should be fractional.")
+        exit()
+    i=0
+    xyz=np.zeros((len(atoms),3))
+    for at in atoms:
+        xyz[i][0]=at.x
+        xyz[i][1]=at.y
+        xyz[i][2]=at.z
+        i=i+1
+    norm=max(a.norm,b.norm,c.norm)
+    rMin=0.8/norm
+    print(norm,rMin)
+    rlist(xyz,rMin)
+    exit()
 
 if(args.select_atom_names is not None):
     tmp=[]
