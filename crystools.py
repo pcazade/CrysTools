@@ -1658,7 +1658,7 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire)
             fo.write('%s\n' % (run) ) 
             continue
         elif(args.cp2k_opt[0].strip()=='NONE'):
-            run='   RUN_TYPE FORCE_EVAL'
+            run='   RUN_TYPE ENERGY_FORCE'
             fo.write('%s\n' % (run) ) 
             continue
         if(args.cp2k_elastic_piezo or args.strain or args.cp2k_dielectric or (args.cp2k_opt[0].strip()=='IONS')):
@@ -2038,7 +2038,7 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire):
     elif(args.cp2k_opt[0].strip()=='IONS'):
         fo.write('   RUN_TYPE  %s\n' % ('GEO_OPT'))
     elif(args.cp2k_opt[0].strip()=='NONE'):
-        fo.write('   RUN_TYPE  %s\n' % ('FORCE_EVAL'))
+        fo.write('   RUN_TYPE  %s\n' % ('ENERGY_FORCE'))
     fo.write(' &END GLOBAL\n')
     if('NONE' not in args.cp2k_opt[0].strip()):
         fo.write(' &MOTION\n')
