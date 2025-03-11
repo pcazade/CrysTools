@@ -1528,6 +1528,102 @@ def readCry(fName):
         k=k+1
     return(atoms,a,b,c)
 
+def writeFdf(fName,atoms,a,b,c,sysType):
+    ks=['H','He','Li','Be','B','C','N','O','F','Ne','Na','Mg','Al','Si','P',
+        'S','Cl','Ar','K','Ca','Sc','Ti','V','Cr','Mn','Fe','Co','Ni','Cu',
+        'Zn','Ga','Ge','As','Se','Br','Kr','Rb','Sr','Y','Zr','Nb','Mo','Tc',
+        'Ru','Rh','Pd','Ag','Cd','In','Sn','Sb','Te','I','Xe','Cs','Ba',
+        'La','Ce','Pr','Nd','Pm','Sm','Eu','Gd','Tb','Dy','Ho','Er','Tm','Yb',
+        'Lu','Hf','Ta','W','Re','Os','Ir','Pt','Au','Hg','Tl','Pb','Bi','Po',
+        'At','Rn','Fr','Ra','Ac','Th','Pa','U','Np','Pu','Am','Cm','Bk','Cf',
+        'Es','Fm','Md','No','Lr','Rf','Db','Sg','Bh','Hs','Mt','Ds','Rg','Cn']
+    wz(a,b,c)
+    hmat=[[a.x,a.y,a.z],[b.x,b.y,b.z],[c.x,c.y,c.z]]
+    NL=""
+    w=fName.split('.')
+    for i in range(len(w)-1):
+        if(i==0):
+            NL=w[i]
+        else:
+            NL=NL+'_'+w[i]
+    fn=NL+".fdf"
+    fo=open(fn,'w')
+    fo.write("SystemName %s\n" % (NL))
+    fo.write("SystemLabel %s\n" % (NL))
+    fo.write("\n")
+    lel=[]
+    nel=[]
+    for at in atoms:
+        typeatom(at)
+        if(at.el.strip() not in lel):
+            lel.append(at.el.strip())
+    fo.write("NumberOfAtoms %d\n" % (len(atoms)))
+    fo.write("NumberOfSpecies %d\n" % (len(lel)))
+    fo.write("\n")
+    fo.write("%block ChemicalSpeciesLabel\n")
+    i=0
+    for el in lel:
+        i=i+1
+        atn=ks.index(el.strip())+1
+        fo.write("%d %d %s\n" % (i,atn,el))
+    fo.write("%endblock ChemicalSpeciesLabel\n")
+    fo.write("\n")
+    fo.write("PAO.BasisSize    DZP\n")
+    fo.write("PAO.EnergyShift  0.01 Ry\n")
+    fo.write("XC.functional    GGA\n")
+    fo.write("XC.authors       PBE\n")
+    fo.write("\n")
+    fo.write("%block kgrid.MonkhorstPack\n")
+    kx=math.ceil(24./a.norm)
+    ky=math.ceil(24./b.norm)
+    kz=math.ceil(24./c.norm)
+    fo.write("%d %d %d %f\n" % (kx,0,0,0.0))
+    fo.write("%d %d %d %f\n" % (0,ky,0,0.0))
+    fo.write("%d %d %d %f\n" % (0,0,kz,0.0))
+    fo.write("%endblock kgrid.MonkhorstPack\n")
+    fo.write("\n")
+    fo.write("LatticeConstant 1.0 Ang\n")
+    fo.write("%block LatticeVectors\n")
+    fo.write(" %22.10E%22.10E%22.10E\n" % (a.x,a.y,a.z))
+    fo.write(" %22.10E%22.10E%22.10E\n" % (b.x,b.y,b.z))
+    fo.write(" %22.10E%22.10E%22.10E\n" % (c.x,c.y,c.z))
+    fo.write("%endblock LatticeVectors\n")
+    fo.write("\n")
+    if('F' in sysType):
+        fo.write("AtomicCoordinatesFormat  Fractional\n")
+    else:
+        fo.write("AtomicCoordinatesFormat  Ang\n")
+    fo.write("%block AtomicCoordinatesAndAtomicSpecies\n")
+    for at in atoms:
+        iel=lel.index(at.el.strip())+1
+        if('F' in sysType):
+            at.x-=math.floor(at.x)
+            at.y-=math.floor(at.y)
+            at.z-=math.floor(at.z)
+        fo.write("%20.10E%20.10E%20.10E%5d\n" % (at.x,at.y,at.z,iel))
+    fo.write("%endblock AtomicCoordinatesAndAtomicSpecies\n")
+    fo.write("\n")
+    fo.write("MaxSCFIterations      300\n")
+    fo.write("SCF.Mix.First         T\n")
+    fo.write("SCF.Mixer.Weight      0.25\n")
+    fo.write("SCF.Mixer.History     6\n")
+    fo.write("DM.UseSaveDM          T\n")
+    fo.write("TS.MixH               yes\n")
+    fo.write("TS.HS.Save            T\n")
+    fo.write("TS.DE.Save            T\n")
+    fo.write("\n")
+    fo.write("MD.UseSaveXV          T\n")
+    fo.write("\n")
+    fo.write("WriteMullikenPop                1\n")
+    fo.write("SaveElectrostaticPotential      T\n")
+    fo.write("WriteCoorXmol                   T\n")
+    fo.write("WriteMDXmol                     T\n")
+    fo.write("WriteMDhistory                  F\n")
+    fo.write("WriteEigenvalues                yes\n")
+    fo.write("\n")
+    fo.close()
+    return
+
 def writeCp2k(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire):
     ext=inName.split('.')[-1]
     if(args.cp2k_template is not None):
@@ -1639,6 +1735,7 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire)
     fi.seek(0,0)
     isSer=False
     isMM=False
+    isPrevLineDFT=False
     nAtoms=len(atoms)*math.ceil(18./a.norm)*math.ceil(18./b.norm)*math.ceil(18./c.norm)
     if(args.cp2k_opt_algo[0].strip()=='BFGS' and (nAtoms>=1000)):
         args.cp2k_opt_algo[0]='LBFGS'
@@ -1661,6 +1758,23 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire)
             run='   RUN_TYPE ENERGY_FORCE'
             fo.write('%s\n' % (run) ) 
             continue
+        if('&END DFT' in line):
+            isPrevLineDFT=False
+        if(args.cp2k_molecular_orbitals and isPrevLineDFT):
+            if('&MO_CUBES' in line):
+                line=fi.readline()
+                while('&END MO_CUBES' not in line):
+                    line=fi.readline()
+                    continue
+                continue
+            if('&PRINT' in line):
+                fo.write( "%s" % (line))
+                line=fi.readline()
+                fo.write('        &MO_CUBES\n')
+                fo.write('          NHOMO %d\n' % (args.cp2k_mo_numbers[0]))
+                fo.write('          NLUMO %d\n' % (args.cp2k_mo_numbers[1]))
+                fo.write('        &END MO_CUBES\n')
+                continue
         if(args.cp2k_elastic_piezo or args.strain or args.cp2k_dielectric or (args.cp2k_opt[0].strip()=='IONS')):
             if('&MOTION' in line):
                 fo.write( "%s" % (line))
@@ -1715,9 +1829,16 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire)
                     continue
                 continue
         if(args.cp2k_dielectric and (dire is not None)):
+            if('&PERIODIC_EFIELD' in line):
+                line=fi.readline()
+                while('&END PERIODIC_EFIELD' not in line):
+                    line=fi.readline()
+                    continue
+                continue
             if(('STRESS_TENSOR' in line)):
                 continue
             if('&DFT' in line):
+                isPrevLineDFT=True
                 fo.write( "%s" % (line))
                 uvw=np.matmul(tih,dire)
                 norm=la.norm(uvw)
@@ -1726,14 +1847,11 @@ def writeCp2kTemplate(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire)
                 fo.write('       INTENSITY %lg\n' % (args.cp2k_dielectric_field[0]))
                 fo.write('       POLARISATION %lf %lf %lf\n' % (uvw[0],uvw[1],uvw[2]))
                 fo.write('     &END PERIODIC_EFIELD\n')
-                continue
             if('&MM' in line):
                 fo.write( "%s" % (line))
                 uvw=dire
                 norm=la.norm(uvw)
                 uvw=uvw/norm
-                print(dire)
-                print(uvw)
                 fo.write('     &PERIODIC_EFIELD\n')
                 fo.write('       INTENSITY %lg\n' % (args.cp2k_dielectric_field[0]))
                 fo.write('       POLARISATION %lf %lf %lf\n' % (uvw[0],uvw[1],uvw[2]))
@@ -2542,39 +2660,66 @@ def strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
     ext=outName.split('.')[-1]
     basename=outName.split('.')[0]
 
-    cax=['a','b','c','al','be','ga']
-    fax=['x','y','z','yz','xz','xy']
-    for s in args.strain_values:
-        e=np.identity(3)
-        if(args.strain_axis[0].strip()=='a' or args.strain_axis[0].strip()=='x'):
-            e[0,0]+=s
-        elif(args.strain_axis[0].strip()=='b' or args.strain_axis[0].strip()=='y'):
-            e[1,1]+=s
-        elif(args.strain_axis[0].strip()=='c' or args.strain_axis[0].strip()=='z'):
-            e[2,2]+=s
-        elif(args.strain_axis[0].strip()=='al' or args.strain_axis[0].strip()=='yz'):
-            e[2,1]+=s
-        elif(args.strain_axis[0].strip()=='be' or args.strain_axis[0].strip()=='xz'):
-            e[2,0]+=s
-        elif(args.strain_axis[0].strip()=='ga' or args.strain_axis[0].strip()=='xy'):
-            e[1,0]+=s
-        if(args.strain_axis[0].strip() in cax):
-            hs=np.matmul(e,hmat) # abc axes, angles conserved
-        elif(args.strain_axis[0].strip() in fax):
-            te=np.transpose(e)
-            hs=np.matmul(hmat,te) # xyz axes, angles not conserved
-        sa.x=hs[0,0]
-        sa.y=hs[0,1]
-        sa.z=hs[0,2]
-        sb.x=hs[1,0]
-        sb.y=hs[1,1]
-        sb.z=hs[1,2]
-        sc.x=hs[2,0]
-        sc.y=hs[2,1]
-        sc.z=hs[2,2]
-        wz(sa,sb,sc)
-        fname=basename+'.'+args.strain_axis[0].strip()+'_'+str(s)+'.'+ext
-        io_write(inName,fname,atoms,sa,sb,sc,isScaled,sysType,0,args,None)
+    if(len(args.strain_list)>0):
+        i=0
+        fi=open(args.strain_list)
+        for line in fi:
+            w=line.split()
+            atoms,a,b,c=io_read(w)
+            if(i==0):
+                h0=[[a.x,a.y,a.z],[b.x,b.y,b.z],[c.x,c.y,c.z]]
+                ih0=la.inv(h0)
+            else:
+                h=[[a.x,a.y,a.z],[b.x,b.y,b.z],[c.x,c.y,c.z]]
+                eta=np.matmul(h,ih0)
+                hs=np.matmul(e,hmat)
+                sa.x=hs[0,0]
+                sa.y=hs[0,1]
+                sa.z=hs[0,2]
+                sb.x=hs[1,0]
+                sb.y=hs[1,1]
+                sb.z=hs[1,2]
+                sc.x=hs[2,0]
+                sc.y=hs[2,1]
+                sc.z=hs[2,2]
+                wz(sa,sb,sc)
+                fname=basename+'.'+args.strain_axis[0].strip()+'_'+str(i+1)+'.'+ext
+                io_write(inName,fname,atoms,sa,sb,sc,isScaled,sysType,0,args,None)
+            i=i+1
+    else:
+        cax=['a','b','c','al','be','ga']
+        fax=['x','y','z','yz','xz','xy']
+        for s in args.strain_values:
+            e=np.identity(3)
+            if(args.strain_axis[0].strip()=='a' or args.strain_axis[0].strip()=='x'):
+                e[0,0]+=float(s)
+            elif(args.strain_axis[0].strip()=='b' or args.strain_axis[0].strip()=='y'):
+                e[1,1]+=float(s)
+            elif(args.strain_axis[0].strip()=='c' or args.strain_axis[0].strip()=='z'):
+                e[2,2]+=float(s)
+            elif(args.strain_axis[0].strip()=='al' or args.strain_axis[0].strip()=='yz'):
+                e[2,1]+=float(s)
+            elif(args.strain_axis[0].strip()=='be' or args.strain_axis[0].strip()=='xz'):
+                e[2,0]+=float(s)
+            elif(args.strain_axis[0].strip()=='ga' or args.strain_axis[0].strip()=='xy'):
+                e[1,0]+=float(s)
+            if(args.strain_axis[0].strip() in cax):
+                hs=np.matmul(e,hmat) # abc axes, angles conserved
+            elif(args.strain_axis[0].strip() in fax):
+                te=np.transpose(e)
+                hs=np.matmul(hmat,te) # xyz axes, angles not conserved
+            sa.x=hs[0,0]
+            sa.y=hs[0,1]
+            sa.z=hs[0,2]
+            sb.x=hs[1,0]
+            sb.y=hs[1,1]
+            sb.z=hs[1,2]
+            sc.x=hs[2,0]
+            sc.y=hs[2,1]
+            sc.z=hs[2,2]
+            wz(sa,sb,sc)
+            fname=basename+'.'+args.strain_axis[0].strip()+'_'+s.strip()+'.'+ext
+            io_write(inName,fname,atoms,sa,sb,sc,isScaled,sysType,0,args,None)
     return
 
 def get_stress(inName,outName,args):
@@ -2637,13 +2782,13 @@ def get_stress(inName,outName,args):
     for s in args.strain_values:
         i+=1
         if(isVASP):
-            fname=basename+'.'+axis.strip()+'_'+str(s)
+            fname=basename+'.'+axis.strip()+'_'+s.strip()
         else:
-            fname=basename+'.'+axis.strip()+'_'+str(s)+'.'+ext
+            fname=basename+'.'+axis.strip()+'_'+s.strip()+'.'+ext
             if os.path.isfile(fname):
                 stress,u,v,w=getStressTensorCP2K(fname)
             else:
-                sigma[i,0]=s
+                sigma[i,0]=float(s)
                 continue
         if(axis=='a'):
             si=stress[0,0]
@@ -2672,7 +2817,7 @@ def get_stress(inName,outName,args):
             si=stress[2,0]
         elif(axis=='xy'):
             si=stress[1,0]
-        sigma[i,0]=s
+        sigma[i,0]=float(s)
         sigma[i,1]=si
         sigma[i,2]=si-si0
         if(axis in cax[0:3]):
@@ -3766,8 +3911,8 @@ def rlist(xyz,rMin):
 # Program begins here:
 
 parser=ap.ArgumentParser(prog='crystools',description='Convert between various structure and input file formats. Generate perturbations for piezoelectric and elastic properties. When the requested output file is in CP2K format, if a template is provided together with an input file in CP2K format, the keywords found in the tenplate are used with the structure cointained in the input. Any additional argumnet like -d3 will overwrite what is present in the template',epilog='Please repport any bugs to P.-A. Cazade at pierre.cazade@ul.ie.')
-parser.add_argument('-i','--input',nargs='+',required=True,help='Input file(s). Format: CIF(.cif), PDB (.pdb), GROMACS (.gro), Cartesian (.xyz), DFTB+ (.gen), VASP (POSCAR, .poscar, .vasp), CP2K (.inp, .restart),Crystal23 (.cry, .d12)')
-parser.add_argument('-o','--output',nargs='+',required=True,help='Output file(s). Format: CIF(.cif), PDB (.pdb), GROMACS (.gro), Cartesian (.xyz), DFTB+ (.gen), VASP (POSCAR, .poscar, .vasp), CP2K (.inp, .restart),Crystal23 (.cry, .d12)')
+parser.add_argument('-i','--input',nargs='+',required=True,help='Input file(s). Format: CIF(.cif), PDB (.pdb), GROMACS (.gro), Cartesian (.xyz), DFTB+ (.gen), VASP (POSCAR, .poscar, .vasp), CP2K (.inp, .restart), Crystal23 (.cry, .d12)')
+parser.add_argument('-o','--output',nargs='+',required=True,help='Output file(s). Format: CIF(.cif), PDB (.pdb), GROMACS (.gro), Cartesian (.xyz), DFTB+ (.gen), VASP (POSCAR, .poscar, .vasp), CP2K (.inp, .restart) ,Crystal23 (.cry, .d12), Siesta (.fdf)')
 parser.add_argument('-pad', '--padding',type=float,nargs=3,default=[0.0,0.0,0.0],help='Increase the size of the crystal box by increasing the a, b, and c parameters. This breaks the symmetry of the crystal.')
 parser.add_argument('-sc', '--super_cell',type=int,nargs=3,default=[1,1,1],help='Number of replicas in each direction to make or reverse a supercell.')
 parser.add_argument('-msc', '--make_super_cell',nargs=1,choices=['no','do','undo'],default=['no'],help='Whether to do nothing (no), make (do), or reverse (undo) a supercell.')
@@ -3779,9 +3924,11 @@ parser.add_argument('-fsym',action='store_true',help='Find and print the space g
 parser.add_argument('-hn','--hall_number',nargs=1,type=int,default=[-1],help='Space group number used by Spglib, aka Hall number: 1-530. If provided it prevents the seach for the space group speeding up the symmetry section.')
 parser.add_argument('-hnelpi','--hall_number_elastic_piezo',nargs=6,type=int,default=[-1,-1,-1,-1,-1,-1],help='Space group number used by Spglib (aka Hall number: 1-530), for each of the 6 strains. If provided it prevents the seach for the space group speeding up the symmetry section.')
 parser.add_argument('-strain',action='store_true',help='Generate as series of strained systems along one of the crystallographic or cartesian axis.')
-parser.add_argument('-sv','--strain_values',type=float,nargs='+',default=[0.005, 0.01, 0.015, 0.02, 0.025, 0.04, 0.05,0.06, 0.08, 0.1, 0.12, 0.15, 0.18, 0.2, 0.25],help='Values for straining the system.')
+parser.add_argument('-sv','--strain_values',nargs='+',default=[0.005, 0.01, 0.015, 0.02, 0.025, 0.04, 0.05,0.06, 0.08, 0.1, 0.12, 0.15, 0.18, 0.2, 0.25],help='Values for straining the system. The values are actually stored as a string type to facilitate the file naming.')
 parser.add_argument('-sa','--strain_axis',nargs=1,choices=['a','b','c','al','be','ga','x','y','z','yz','xz','xy'],default=['c'],help='Axis along which to generate as series of strained systems.')
 parser.add_argument('-getstress',action='store_true',help='Read the stress from the output files of as series of strained systems along one of the crystallographic or cartesian axis. The results are stored in outName and the stress tensor for the unstrained system is read in inName. For VASP, input file must be name OUTCAR, for the series of strains, files are expected to be named OUTCAR.[strained value]. E.g. OUTCAR.0.1')
+parser.add_argument('-cpmo','--cp2k_molecular_orbitals',action='store_true',help='Whether MOs should be printed in the output file. Usefull for band gap. Use together with -cpmon to control the number of HOMO and LUMO to be printed.')
+parser.add_argument('-cpmon','--cp2k_mo_numbers',nargs=2,type=int,default=[3,3],help='Takes two type int arguments: number of HOMO and LUMO to be printed.')
 parser.add_argument('-cpot','--cp2k_ot_algo',nargs=1,choices=['STRICT','IRAC','RESTART'],default=['STRICT'],help='Algorithm to ensure convergence of the Choleski decomposition. For difficult systems, use IRAC or RESTART. For RESTART, you need to have the wavefunction file from a previous calculation for the system of interest. This file should have the same basename as the input file with the extension .wfn.')
 parser.add_argument('-cpopt','--cp2k_opt',nargs=1,choices=['CELL','IONS','NONE'],default=['CELL'],help='Optimization approach: full cell and ionic positions (CELL), or only the ionic positions (IONS), or no geometry optimization (NONE).')
 parser.add_argument('-cpoptal','--cp2k_opt_algo',nargs=1,choices=['BFGS','CG'],default=['BFGS'],help='Optimization algorithm. If the number of atoms exceeds 999, BFGS is changed to its linearized version LBFGS.')
