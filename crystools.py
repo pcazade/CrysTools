@@ -2315,6 +2315,11 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire):
     fo.write('       PERIODIC  XYZ\n')
     fo.write('     &END POISSON\n')
     fo.write('     &PRINT\n')
+    if(args.cp2k_molecular_orbitals):
+        fo.write('        &MO_CUBES\n')
+        fo.write('          NHOMO %d\n' % (args.cp2k_mo_numbers[0]))
+        fo.write('          NLUMO %d\n' % (args.cp2k_mo_numbers[1]))
+        fo.write('        &END MO_CUBES\n')
     fo.write('       &MOMENTS  SILENT\n')
     fo.write('         PERIODIC  T\n')
     fo.write('       &END MOMENTS\n')
