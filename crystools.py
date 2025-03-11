@@ -2683,7 +2683,7 @@ def strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
                 sc.y=hs[2,1]
                 sc.z=hs[2,2]
                 wz(sa,sb,sc)
-                fname=basename+'.'+args.strain_axis[0].strip()+'_'+str(i+1)+'.'+ext
+                fname=basename+'.'+str(i+1)+'.'+ext
                 io_write(inName,fname,atoms,sa,sb,sc,isScaled,sysType,0,args,None)
             i=i+1
     else:
