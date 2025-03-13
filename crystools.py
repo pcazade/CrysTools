@@ -2665,12 +2665,12 @@ def strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
     ext=outName.split('.')[-1]
     basename=outName.split('.')[0]
 
-    if(len(args.strain_list)>0):
+    if(len(args.strain_list[0])>0):
         i=0
-        fi=open(args.strain_list)
+        fi=open(args.strain_list[0])
         for line in fi:
             w=line.split()
-            atoms,a,b,c=io_read(w)
+            coord,a,b,c,tmp_isScaled,tmp_sysType,tmp_spg=io_read(w[0])
             if(i==0):
                 h0=[[a.x,a.y,a.z],[b.x,b.y,b.z],[c.x,c.y,c.z]]
                 ih0=la.inv(h0)
@@ -2731,10 +2731,6 @@ def get_stress(inName,outName,args):
     cax=['a','b','c','al','be','ga']
     fax=['x','y','z','yz','xz','xy']
     axis=args.strain_axis[0].strip()
-    if(axis in cax):
-        sigma=np.zeros((len(args.strain_values)+1,5))
-    else:
-        sigma=np.zeros((len(args.strain_values)+1,3))
 
     basename=inName.split('.')[0]
     ext=inName.split('.')[-1]
@@ -2744,96 +2740,38 @@ def get_stress(inName,outName,args):
         stress=getStressTensorVASP(inName)
     elif(ext=='out' or ext=='log'):
         stress,u,v,w=getStressTensorCP2K(inName)
-        print(stress)
     else:
         print(ext,'unknown output file extension. This function is only available for VASP and CP2K')
         exit()
-    
-    if(axis=='a'):
-        si0=stress[0,0]
-        sig0=stress[0]
-    elif(axis=='b'):
-        si0=stress[1,1]
-        sig0=stress[1]
-    elif(axis=='c'):
-        si0=stress[2,2]
-        sig0=stress[2]
-    elif(axis=='al'):
-        si0=stress[2,1]
-    elif(axis=='be'):
-        si0=stress[2,0]
-    elif(axis=='ga'):
-        si0=stress[1,0]
-    elif(axis=='x'):
-        si0=stress[0,0]
-    elif(axis=='y'):
-        si0=stress[1,1]
-    elif(axis=='z'):
-        si0=stress[2,2]
-    elif(axis=='yz'):
-        si0=stress[2,1]
-    elif(axis=='xz'):
-        si0=stress[2,0]
-    elif(axis=='xy'):
-        si0=stress[1,0]
 
-    sigma[0,1]=si0
-    sigma[0,2]=si0-si0
-    if(axis in cax[0:3]):
-        sigma[0,3]=la.norm(sig0)
-        sigma[0,4]=la.norm(sig0-sig0)
-
-    i=0
-    for s in args.strain_values:
-        i+=1
-        if(isVASP):
-            fname=basename+'.'+axis.strip()+'_'+s.strip()
-        else:
-            fname=basename+'.'+axis.strip()+'_'+s.strip()+'.'+ext
-            if os.path.isfile(fname):
-                stress,u,v,w=getStressTensorCP2K(fname)
-            else:
-                sigma[i,0]=float(s)
-                continue
-        if(axis=='a'):
-            si=stress[0,0]
-            sig=stress[0]
-        elif(axis=='b'):
-            si=stress[1,1]
-            sig=stress[1]
-        elif(axis=='c'):
-            si=stress[2,2]
-            sig=stress[2]
-        elif(axis=='al'):
-            si=stress[2,1]
-        elif(axis=='be'):
-            si=stress[2,0]
-        elif(axis=='ga'):
-            si=stress[1,0]
-        elif(axis=='x'):
-            si=stress[0,0]
-        elif(axis=='y'):
-            si=stress[1,1]
-        elif(axis=='z'):
-            si=stress[2,2]
-        elif(axis=='yz'):
-            si=stress[2,1]
-        elif(axis=='xz'):
-            si=stress[2,0]
-        elif(axis=='xy'):
-            si=stress[1,0]
-        sigma[i,0]=float(s)
-        sigma[i,1]=si
-        sigma[i,2]=si-si0
-        if(axis in cax[0:3]):
-            sigma[i,3]=la.norm(sig)
-            sigma[i,4]=la.norm(sig-sig0)
-    
     fo=open(outName,'w')
-    for sig in sigma:
-        for si in sig:
-            fo.write("%lf " % (si))
-        fo.write("\n")
+    fo.write("%d %15.6lg%15.6lg%15.6lg%15.6lg%15.6lg%15.6lg" % (0,stress[0][0],stress[1][1],stress[2][2],stress[2][1],stress[2][0],stress[1][0]))
+    `
+    if(len(args.stress_list[0])>0):
+        fi=open(args.strain_list[0])
+        for line in fi:
+            w=line.split()
+            stress=np.zeros((3,3))
+            if(isVASP):
+                if os.path.isfile(w[0]):
+                    stress=getStressTensorVASP(w[0])
+            else:
+                if os.path.isfile(w[0]):
+                    stress,u,v,w=getStressTensorCP2K(w[0])
+            fo.write("%d %15.6lg%15.6lg%15.6lg%15.6lg%15.6lg%15.6lg" % (0,stress[0][0],stress[1][1],stress[2][2],stress[2][1],stress[2][0],stress[1][0]))
+        fi.close()
+    else:
+        for s in args.strain_values:
+            if(isVASP):
+                fname=basename+'.'+axis.strip()+'_'+s.strip()
+                if os.path.isfile(fname):
+                    stress=getStressTensorVASP(fname)
+            else:
+                fname=basename+'.'+axis.strip()+'_'+s.strip()+'.'+ext
+                if os.path.isfile(fname):
+                    stress,u,v,w=getStressTensorCP2K(fname)
+            fo.write("%d %15.6lg%15.6lg%15.6lg%15.6lg%15.6lg%15.6lg" % (0,stress[0][0],stress[1][1],stress[2][2],stress[2][1],stress[2][0],stress[1][0]))
+    
     fo.close()
     return
 
