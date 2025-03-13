@@ -2748,7 +2748,7 @@ def get_stress(inName,outName,args):
     fo.write("%d %15.6lg%15.6lg%15.6lg%15.6lg%15.6lg%15.6lg" % (0,stress[0][0],stress[1][1],stress[2][2],stress[2][1],stress[2][0],stress[1][0]))
     `
     if(len(args.stress_list[0])>0):
-        fi=open(args.strain_list[0])
+        fi=open(args.stress_list[0])
         for line in fi:
             w=line.split()
             stress=np.zeros((3,3))
@@ -3870,7 +3870,8 @@ parser.add_argument('-strain',action='store_true',help='Generate as series of st
 parser.add_argument('-sl','--strain_list',nargs=1,default=[''],help='File name containg the list of strcuture files from which strain is exctracted.')
 parser.add_argument('-sv','--strain_values',nargs='+',default=[0.005, 0.01, 0.015, 0.02, 0.025, 0.04, 0.05,0.06, 0.08, 0.1, 0.12, 0.15, 0.18, 0.2, 0.25],help='Values for straining the system. The values are actually stored as a string type to facilitate the file naming.')
 parser.add_argument('-sa','--strain_axis',nargs=1,choices=['a','b','c','al','be','ga','x','y','z','yz','xz','xy'],default=['c'],help='Axis along which to generate as series of strained systems.')
-parser.add_argument('-getstress',action='store_true',help='Read the stress from the output files of as series of strained systems along one of the crystallographic or cartesian axis. The results are stored in outName and the stress tensor for the unstrained system is read in inName. For VASP, input file must be name OUTCAR, for the series of strains, files are expected to be named OUTCAR.[strained value]. E.g. OUTCAR.0.1')
+parser.add_argument('-getstress',action='store_true',help='Read the stress from the output files of as series of strained systems along one of the crystallographic or cartesian axis. The results are stored in outName and the stress tensor for the unstrained system is read in inName. For VASP, input file must be name OUTCAR, for the series of strains, files are expected to be named OUTCAR.[strained value]. E.g. OUTCAR.0.1. Alternatively, the output files can be listed in a file passed with the -ssl option, without naming convention.')
+parser.add_argument('-ssl','--stress_list',nargs=1,default=[''],help='File name containg the list of output files from which to extract the stress tensors for the stress-strain curves.')
 parser.add_argument('-cpmo','--cp2k_molecular_orbitals',action='store_true',help='Whether MOs should be printed in the output file. Usefull for band gap. Use together with -cpmon to control the number of HOMO and LUMO to be printed.')
 parser.add_argument('-cpmon','--cp2k_mo_numbers',nargs=2,type=int,default=[3,3],help='Takes two type int arguments: number of HOMO and LUMO to be printed.')
 parser.add_argument('-cpot','--cp2k_ot_algo',nargs=1,choices=['STRICT','IRAC','RESTART'],default=['STRICT'],help='Algorithm to ensure convergence of the Choleski decomposition. For difficult systems, use IRAC or RESTART. For RESTART, you need to have the wavefunction file from a previous calculation for the system of interest. This file should have the same basename as the input file with the extension .wfn.')
