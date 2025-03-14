@@ -2670,6 +2670,8 @@ def strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
         fi=open(args.strain_list[0])
         for line in fi:
             w=line.split()
+            if((len(line)==0) or (len(w)==0)):
+                continue
             coord,a,b,c,tmp_isScaled,tmp_sysType,tmp_spg=io_read(w[0])
             if(i==0):
                 h0=[[a.x,a.y,a.z],[b.x,b.y,b.z],[c.x,c.y,c.z]]
@@ -2745,12 +2747,13 @@ def get_stress(inName,outName,args):
         exit()
 
     fo=open(outName,'w')
-    fo.write("%d %15.6lg%15.6lg%15.6lg%15.6lg%15.6lg%15.6lg" % (0,stress[0][0],stress[1][1],stress[2][2],stress[2][1],stress[2][0],stress[1][0]))
-    `
+    fo.write("%d %15.6le%15.6le%15.6le%15.6le%15.6le%15.6le\n" % (0,stress[0][0],stress[1][1],stress[2][2],stress[2][1],stress[2][0],stress[1][0]))
     if(len(args.stress_list[0])>0):
         fi=open(args.stress_list[0])
         for line in fi:
             w=line.split()
+            if((len(line)==0) or (len(w)==0)):
+                continue
             stress=np.zeros((3,3))
             if(isVASP):
                 if os.path.isfile(w[0]):
@@ -2758,7 +2761,7 @@ def get_stress(inName,outName,args):
             else:
                 if os.path.isfile(w[0]):
                     stress,u,v,w=getStressTensorCP2K(w[0])
-            fo.write("%d %15.6lg%15.6lg%15.6lg%15.6lg%15.6lg%15.6lg" % (0,stress[0][0],stress[1][1],stress[2][2],stress[2][1],stress[2][0],stress[1][0]))
+            fo.write("%d %15.6le%15.6le%15.6le%15.6le%15.6le%15.6le\n" % (0,stress[0][0],stress[1][1],stress[2][2],stress[2][1],stress[2][0],stress[1][0]))
         fi.close()
     else:
         for s in args.strain_values:
@@ -2770,7 +2773,7 @@ def get_stress(inName,outName,args):
                 fname=basename+'.'+axis.strip()+'_'+s.strip()+'.'+ext
                 if os.path.isfile(fname):
                     stress,u,v,w=getStressTensorCP2K(fname)
-            fo.write("%d %15.6lg%15.6lg%15.6lg%15.6lg%15.6lg%15.6lg" % (0,stress[0][0],stress[1][1],stress[2][2],stress[2][1],stress[2][0],stress[1][0]))
+            fo.write("%d %15.6le%15.6le%15.6le%15.6le%15.6le%15.6le\n" % (0,stress[0][0],stress[1][1],stress[2][2],stress[2][1],stress[2][0],stress[1][0]))
     
     fo.close()
     return
