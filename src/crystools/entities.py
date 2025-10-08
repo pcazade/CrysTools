@@ -2,6 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Dict
 
+
 @dataclass
 class Atom:
     header: str= "ATOM  " #to write pdb file (pdb starts with ATOM)
@@ -29,3 +30,13 @@ class Atom:
     # nAt = 0 #n atoms. not used anywhere (to be removed)
     el: str= " " #name of the element
     sig: float= 2.0 #sigma = van der Waals radius
+
+
+@dataclass
+class Residue:
+    resName: str= "DUM" #residue name
+    segName: str= "P1  " #segment name
+    atoms: List[Atom] = field(default_factory=list) #residue is constituted by atoms. create a default empty list initially.
+
+    def add_atom(self, atom: Atom) -> None:
+        self.atoms.append(atom) #add up more atoms upon need
