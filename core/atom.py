@@ -66,36 +66,25 @@ class Atom(object):
         """Infer element (self.el), mass (self.m) if missing, and sigma (self.sig)
         from the atom's name/element. Mirrors legacy typeatom(atom).
         """
-        if (self.name.strip() == 'CAL' or self.name.strip() == 'Ca'):
-            self.el = 'Ca'
-        elif (self.name.strip() == 'CLA' or self.name.strip()[0:3] == 'CLG' or self.name.strip()[0:3] == 'Cl'):
-            self.el = 'Cl'
-        elif (self.name.strip() == 'SOD' or self.name.strip() == 'NA' or self.name.strip() == 'Na'):
-            self.el = 'Na'
-        elif (self.name.strip() == 'MGA' or self.name.strip() == 'MG' or self.name.strip() == 'Mg'):
-            self.el = 'Mg'
-        elif (self.name.strip() == 'ZN' or self.name.strip() == 'Zn'):
-            self.el = 'Zn'
-        elif (self.name.strip() == 'POT' or self.name.strip() == 'K'):
-            self.el = 'K'
-        elif (self.name.strip() == 'RUB'):
-            self.el = 'Rb'
-        elif (self.name.strip() == 'FE' or self.name.strip() == 'Fe'):
-            self.el = 'Fe'
-        elif (self.name.strip() == 'CES' or self.name.strip() == 'Ce'):
-            self.el = 'Ce'
-        elif (self.name.strip() == 'CAD' or self.name.strip() == 'Cd'):
-            self.el = 'Cd'
-        elif (self.name.strip() == 'ALG1' or self.name.strip() == 'Al'):
-            self.el = 'Al'
-        elif (self.name.strip()[0:2] == 'BR' or self.name.strip() == 'Br'):
-            self.el = 'Br'
-        elif (self.name.strip()[0:2] == 'AU' or self.name.strip() == 'Au'):
-            self.el = 'Au'
-        elif (self.name.strip() == 'BAR'):
-            self.el = 'Ba'
-        elif (self.name.strip() == 'LIT'):
-            self.el = 'Li'
+        aliases = {
+            "CAL": "Ca", "Ca": "Ca",
+            "CLA": "Cl", "CLG": "Cl", "Cl": "Cl",
+            "SOD": "Na", "NA": "Na", "Na": "Na",
+            "MGA": "Mg", "MG": "Mg", "Mg": "Mg",
+            "ZN": "Zn", "Zn": "Zn",
+            "POT": "K", "K": "K",
+            "RUB": "Rb",
+            "FE": "Fe", "Fe": "Fe",
+            "CES": "Ce", "Ce": "Ce",
+            "CAD": "Cd", "Cd": "Cd",
+            "ALG1": "Al", "Al": "Al",
+            "BR": "Br", "Br": "Br",
+            "AU": "Au", "Au": "Au",
+            "BAR": "Ba",
+            "LIT": "Li",
+        }
+        if self.name.strip() in aliases:
+            self.el=aliases[self.name.strip()]
         elif (len(self.name.strip()) > 1 and self.name.strip()[1].islower()):
             self.el = self.name.strip()[0:2]
         else:
