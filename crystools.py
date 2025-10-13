@@ -5309,225 +5309,225 @@ def cg(coords, forces, energy):
     return
 
 
-# Program begins here:
-
-parser = ap.ArgumentParser(prog='crystools',
-                           description='Convert between various structure and input file formats. Generate perturbations for piezoelectric and elastic properties. When the requested output file is in CP2K format, if a template is provided together with an input file in CP2K format, the keywords found in the tenplate are used with the structure cointained in the input. Any additional argumnet like -d3 will overwrite what is present in the template',
-                           epilog='Please repport any bugs to P.-A. Cazade at pierre.cazade@ul.ie.')
-parser.add_argument('-i', '--input', nargs='+', required=True,
-                    help='Input file(s). Format: CIF(.cif), PDB (.pdb), GROMACS (.gro), Cartesian (.xyz), DFTB+ (.gen), VASP (POSCAR, .poscar, .vasp), CP2K (.inp, .restart), Crystal23 (.cry, .d12)')
-parser.add_argument('-o', '--output', nargs='+', required=True,
-                    help='Output file(s). Format: CIF(.cif), PDB (.pdb), GROMACS (.gro), Cartesian (.xyz), DFTB+ (.gen), VASP (POSCAR, .poscar, .vasp), CP2K (.inp, .restart) ,Crystal23 (.cry, .d12), Siesta (.fdf)')
-parser.add_argument('-pbc', action='store_true', help='Use Periodic Boundary Conditions to warp atoms within the box.')
-parser.add_argument('-pad', '--padding', type=float, nargs=3, default=[0.0, 0.0, 0.0],
-                    help='Increase the size of the crystal box by increasing the a, b, and c parameters. This breaks the symmetry of the crystal.')
-parser.add_argument('-sc', '--super_cell', type=int, nargs=3, default=[1, 1, 1],
-                    help='Number of replicas in each direction to make or reverse a supercell.')
-parser.add_argument('-msc', '--make_super_cell', nargs=1, choices=['no', 'do', 'undo'], default=['no'],
-                    help='Whether to do nothing (no), make (do), or reverse (undo) a supercell.')
-parser.add_argument('-sd', action='store_true', help='Selective Dynamics for VASP.')
-parser.add_argument('-d3', action='store_true', help='Use Grimme D3 corrections in DFT input files.')
-parser.add_argument('-asym', action='store_true', help='Print only the aymmetric unit.')
-parser.add_argument('-bsym', action='store_true',
-                    help='Build the crystal unit cell from the aymmetric unit. A Hall number must be provided')
-parser.add_argument('-sedu', action='store_false',
-                    help='Prevents seeking and removing dublipcates. This is can help for large systems.')
-parser.add_argument('-fsym', action='store_true',
-                    help='Find and print the space group number, Hall number, and symmetry operations.')
-parser.add_argument('-hn', '--hall_number', nargs=1, type=int, default=[-1],
-                    help='Space group number used by Spglib, aka Hall number: 1-530. If provided it prevents the seach for the space group speeding up the symmetry section.')
-parser.add_argument('-hnelpi', '--hall_number_elastic_piezo', nargs=6, type=int, default=[-1, -1, -1, -1, -1, -1],
-                    help='Space group number used by Spglib (aka Hall number: 1-530), for each of the 6 strains. If provided it prevents the seach for the space group speeding up the symmetry section.')
-parser.add_argument('-sp', '--symprec', nargs=1, type=float, default=[1.e-4],
-                    help='Precision used to indentify the space group. It is also used to set the corresponding value in CP2K input file.')
-parser.add_argument('-strain', action='store_true',
-                    help='Generate as series of strained systems along one of the crystallographic or cartesian axis.')
-parser.add_argument('-sl', '--strain_list', nargs=1, default=[''],
-                    help='File name containg the list of strcuture files from which strain is exctracted.')
-parser.add_argument('-sv', '--strain_values', nargs='+',
-                    default=[0.005, 0.01, 0.015, 0.02, 0.025, 0.04, 0.05, 0.06, 0.08, 0.1, 0.12, 0.15, 0.18, 0.2, 0.25],
-                    help='Values for straining the system. The values are actually stored as a string type to facilitate the file naming.')
-parser.add_argument('-sa', '--strain_axis', nargs=1,
-                    choices=['a', 'b', 'c', 'al', 'be', 'ga', 'x', 'y', 'z', 'yz', 'xz', 'xy'], default=['c'],
-                    help='Axis along which to generate as series of strained systems.')
-parser.add_argument('-getstress', action='store_true',
-                    help='Read the stress from the output files of as series of strained systems along one of the crystallographic or cartesian axis. The results are stored in outName and the stress tensor for the unstrained system is read in inName. For VASP, input file must be name OUTCAR, for the series of strains, files are expected to be named OUTCAR.[strained value]. E.g. OUTCAR.0.1. Alternatively, the output files can be listed in a file passed with the -ssl option, without naming convention.')
-parser.add_argument('-ssl', '--stress_list', nargs=1, default=[''],
-                    help='File name containg the list of output files from which to extract the stress tensors for the stress-strain curves.')
-parser.add_argument('-cpmo', '--cp2k_molecular_orbitals', action='store_true',
-                    help='Whether MOs should be printed in the output file. Usefull for band gap. Use together with -cpmon to control the number of HOMO and LUMO to be printed.')
-parser.add_argument('-cpmon', '--cp2k_mo_numbers', nargs=2, type=int, default=[3, 3],
-                    help='Takes two type int arguments: number of HOMO and LUMO to be printed.')
-parser.add_argument('-cpot', '--cp2k_ot_algo', nargs=1, choices=['STRICT', 'IRAC', 'RESTART'], default=['STRICT'],
-                    help='Algorithm to ensure convergence of the Choleski decomposition. For difficult systems, use IRAC or RESTART. For RESTART, you need to have the wavefunction file from a previous calculation for the system of interest. This file should have the same basename as the input file with the extension .wfn.')
-parser.add_argument('-cpopt', '--cp2k_opt', nargs=1, choices=['CELL', 'IONS', 'NONE'], default=['CELL'],
-                    help='Optimization approach: full cell and ionic positions (CELL), or only the ionic positions (IONS), or no geometry optimization (NONE).')
-parser.add_argument('-cpoptal', '--cp2k_opt_algo', nargs=1, choices=['BFGS', 'CG'], default=['BFGS'],
-                    help='Optimization algorithm. If the number of atoms exceeds 999, BFGS is changed to its linearized version LBFGS.')
-parser.add_argument('-cpoptan', '--cp2k_opt_angles', action='store_true',
-                    help='Whether the angles of the lattice are allowed to relax.')
-parser.add_argument('-cpoptbr', '--cp2k_opt_bravais', action='store_true',
-                    help='Whether the bravais lattice is conserved or not.')
-parser.add_argument('-cpoptsy', '--cp2k_opt_symmetry', action='store_true',
-                    help='Whether the space group is conserved or not.')
-parser.add_argument('-cptp', '--cp2k_template',
-                    help='Template file for CP2K software if interested in different options.')
-parser.add_argument('-cpmm', action='store_true', help='Use Molecular Mechanics instead of DFT.')
-parser.add_argument('-cpscf', action='store_true',
-                    help='Use standard diagonalization instead of Orbital Transformation in CP2K calculations.')
-parser.add_argument('-cpkp', action='store_true', help='Use k-points instead of supercell.')
-parser.add_argument('-xc', '--exchange_correlation', nargs=1, choices=['BLYP', 'B3LYP', 'PBE', 'PBE0', 'DEFAULT'],
-                    default=['DEFAULT'],
-                    help='Exchange-correlation functional. This is a snall selection of the most common functional found in all DFT software. Check the manual of your DFT software for the full rannge of its capabilities, and edit the input file accordingly. DEFAULT corresponds to whatever is provided in the input/template or PBE.')
-parser.add_argument('-bs', '--basisset', nargs=1, choices=['DZVP', 'TZVP'], default=['DZVP'],
-                    help='Basis set. This is a snall selection of the most basis sets found in all DFT software. Check the manual of your DFT software for the full rannge of its capabilities, and edit the input file accordingly.')
-parser.add_argument('-kgrid', nargs=1, type=float, default=[4.e-2],
-                    help='Point spacing for the k-point grid in the reciprocal space.')
-parser.add_argument('-potcar', action='store_true',
-                    help='Create a POTCAR file compatible with the POSCAR being written.')
-parser.add_argument('-potsrc', '--potcar_source', nargs=1, default=['/home/cazade/Documents/vasp_pp'],
-                    help='Directory where are the POTCARs for each atom.')
-parser.add_argument('-kpoints', action='store_true',
-                    help='Create a KPOINTS file compatible with the POSCAR being written.')
-parser.add_argument('-incar', action='store_true',
-                    help='Create a template INCAR file. It uses some of the cp2k options to set the value of ISIF')
-parser.add_argument('-cpelpi', '--cp2k_elastic_piezo', action='store_true',
-                    help='Generate as series of strain of the system to obtain the elastic and piezolectric tensors with CP2K.')
-parser.add_argument('-cpdie', '--cp2k_dielectric', action='store_true',
-                    help='Generate as series of variations of the electric field to obtain the dielectric tensor with CP2K.')
-parser.add_argument('-cpelpig', '--cp2k_elastic_piezo_get', action='store_true',
-                    help='Get the piezoelectric and elastic tensors from a series of strain of the system.')
-parser.add_argument('-cpdieg', '--cp2k_dielectric_get', action='store_true',
-                    help='Get the dielectric tensor from a series of variations of the electric field.')
-parser.add_argument('-cpst', '--cp2k_elastic_piezo_step', nargs=1, type=float, default=[1.e-2],
-                    help='Strain for the calculation of the elastic and piezolectric tensors with CP2K.')
-parser.add_argument('-cpef', '--cp2k_dielectric_field', nargs=1, type=float, default=[2.e-4],
-                    help='Field step for the calculation of dielectric tensor with CP2K.')
-parser.add_argument('-se', '--symmetry_excluded', nargs=2, type=int, action='append',
-                    help='Range of atoms excluded from symmetry identification and enforcement. Keywords is repeatable.')
-parser.add_argument('-vaspelg', '--vasp_elastic_get', action='store_true',
-                    help='Get the elastic tensor from VASP output file. This file is provided as an input')
-parser.add_argument('-vasppig', '--vasp_piezo_get', action='store_true',
-                    help='Get the piezoelectric and dielectric tensors from VASP output file. This file is provided as an input. If both --vasp_elastic_get and --vasp_piezo_get are requested, the files are provided as a list of inputs with the piezoelectric file first.')
-parser.add_argument('-gmxelpig', '--gmx_elastic_piezo_get', action='store_true',
-                    help='Get the piezoelectric and elastic tensors from a series of strain of the system. Needs a PSF or TOP file provided via the option -psf')
-parser.add_argument('-psf', '--psf_file', nargs=1, default=[''],
-                    help='CHARMM PSF or GROMACS TOP file providing the topology of the system. Required for --gmx_elastic_piezo_get.')
-parser.add_argument('-cppsf', action='store_true', help='PSF file special formatting for CP2K.')
-parser.add_argument('-sam', '--select_atom_names', nargs='+',
-                    help='List of the selected atom names to write in the output files.')
-parser.add_argument('-check', action='store_true', help='Check that the distance bewteen atoms is at least 0.5 A.')
-
-args = parser.parse_args()
-
-print(args)
-
+# # Program begins here:
+#
+# parser = ap.ArgumentParser(prog='crystools',
+#                            description='Convert between various structure and input file formats. Generate perturbations for piezoelectric and elastic properties. When the requested output file is in CP2K format, if a template is provided together with an input file in CP2K format, the keywords found in the tenplate are used with the structure cointained in the input. Any additional argumnet like -d3 will overwrite what is present in the template',
+#                            epilog='Please repport any bugs to P.-A. Cazade at pierre.cazade@ul.ie.')
+# parser.add_argument('-i', '--input', nargs='+', required=True,
+#                     help='Input file(s). Format: CIF(.cif), PDB (.pdb), GROMACS (.gro), Cartesian (.xyz), DFTB+ (.gen), VASP (POSCAR, .poscar, .vasp), CP2K (.inp, .restart), Crystal23 (.cry, .d12)')
+# parser.add_argument('-o', '--output', nargs='+', required=True,
+#                     help='Output file(s). Format: CIF(.cif), PDB (.pdb), GROMACS (.gro), Cartesian (.xyz), DFTB+ (.gen), VASP (POSCAR, .poscar, .vasp), CP2K (.inp, .restart) ,Crystal23 (.cry, .d12), Siesta (.fdf)')
+# parser.add_argument('-pbc', action='store_true', help='Use Periodic Boundary Conditions to warp atoms within the box.')
+# parser.add_argument('-pad', '--padding', type=float, nargs=3, default=[0.0, 0.0, 0.0],
+#                     help='Increase the size of the crystal box by increasing the a, b, and c parameters. This breaks the symmetry of the crystal.')
+# parser.add_argument('-sc', '--super_cell', type=int, nargs=3, default=[1, 1, 1],
+#                     help='Number of replicas in each direction to make or reverse a supercell.')
+# parser.add_argument('-msc', '--make_super_cell', nargs=1, choices=['no', 'do', 'undo'], default=['no'],
+#                     help='Whether to do nothing (no), make (do), or reverse (undo) a supercell.')
+# parser.add_argument('-sd', action='store_true', help='Selective Dynamics for VASP.')
+# parser.add_argument('-d3', action='store_true', help='Use Grimme D3 corrections in DFT input files.')
+# parser.add_argument('-asym', action='store_true', help='Print only the aymmetric unit.')
+# parser.add_argument('-bsym', action='store_true',
+#                     help='Build the crystal unit cell from the aymmetric unit. A Hall number must be provided')
+# parser.add_argument('-sedu', action='store_false',
+#                     help='Prevents seeking and removing dublipcates. This is can help for large systems.')
+# parser.add_argument('-fsym', action='store_true',
+#                     help='Find and print the space group number, Hall number, and symmetry operations.')
+# parser.add_argument('-hn', '--hall_number', nargs=1, type=int, default=[-1],
+#                     help='Space group number used by Spglib, aka Hall number: 1-530. If provided it prevents the seach for the space group speeding up the symmetry section.')
+# parser.add_argument('-hnelpi', '--hall_number_elastic_piezo', nargs=6, type=int, default=[-1, -1, -1, -1, -1, -1],
+#                     help='Space group number used by Spglib (aka Hall number: 1-530), for each of the 6 strains. If provided it prevents the seach for the space group speeding up the symmetry section.')
+# parser.add_argument('-sp', '--symprec', nargs=1, type=float, default=[1.e-4],
+#                     help='Precision used to indentify the space group. It is also used to set the corresponding value in CP2K input file.')
+# parser.add_argument('-strain', action='store_true',
+#                     help='Generate as series of strained systems along one of the crystallographic or cartesian axis.')
+# parser.add_argument('-sl', '--strain_list', nargs=1, default=[''],
+#                     help='File name containg the list of strcuture files from which strain is exctracted.')
+# parser.add_argument('-sv', '--strain_values', nargs='+',
+#                     default=[0.005, 0.01, 0.015, 0.02, 0.025, 0.04, 0.05, 0.06, 0.08, 0.1, 0.12, 0.15, 0.18, 0.2, 0.25],
+#                     help='Values for straining the system. The values are actually stored as a string type to facilitate the file naming.')
+# parser.add_argument('-sa', '--strain_axis', nargs=1,
+#                     choices=['a', 'b', 'c', 'al', 'be', 'ga', 'x', 'y', 'z', 'yz', 'xz', 'xy'], default=['c'],
+#                     help='Axis along which to generate as series of strained systems.')
+# parser.add_argument('-getstress', action='store_true',
+#                     help='Read the stress from the output files of as series of strained systems along one of the crystallographic or cartesian axis. The results are stored in outName and the stress tensor for the unstrained system is read in inName. For VASP, input file must be name OUTCAR, for the series of strains, files are expected to be named OUTCAR.[strained value]. E.g. OUTCAR.0.1. Alternatively, the output files can be listed in a file passed with the -ssl option, without naming convention.')
+# parser.add_argument('-ssl', '--stress_list', nargs=1, default=[''],
+#                     help='File name containg the list of output files from which to extract the stress tensors for the stress-strain curves.')
+# parser.add_argument('-cpmo', '--cp2k_molecular_orbitals', action='store_true',
+#                     help='Whether MOs should be printed in the output file. Usefull for band gap. Use together with -cpmon to control the number of HOMO and LUMO to be printed.')
+# parser.add_argument('-cpmon', '--cp2k_mo_numbers', nargs=2, type=int, default=[3, 3],
+#                     help='Takes two type int arguments: number of HOMO and LUMO to be printed.')
+# parser.add_argument('-cpot', '--cp2k_ot_algo', nargs=1, choices=['STRICT', 'IRAC', 'RESTART'], default=['STRICT'],
+#                     help='Algorithm to ensure convergence of the Choleski decomposition. For difficult systems, use IRAC or RESTART. For RESTART, you need to have the wavefunction file from a previous calculation for the system of interest. This file should have the same basename as the input file with the extension .wfn.')
+# parser.add_argument('-cpopt', '--cp2k_opt', nargs=1, choices=['CELL', 'IONS', 'NONE'], default=['CELL'],
+#                     help='Optimization approach: full cell and ionic positions (CELL), or only the ionic positions (IONS), or no geometry optimization (NONE).')
+# parser.add_argument('-cpoptal', '--cp2k_opt_algo', nargs=1, choices=['BFGS', 'CG'], default=['BFGS'],
+#                     help='Optimization algorithm. If the number of atoms exceeds 999, BFGS is changed to its linearized version LBFGS.')
+# parser.add_argument('-cpoptan', '--cp2k_opt_angles', action='store_true',
+#                     help='Whether the angles of the lattice are allowed to relax.')
+# parser.add_argument('-cpoptbr', '--cp2k_opt_bravais', action='store_true',
+#                     help='Whether the bravais lattice is conserved or not.')
+# parser.add_argument('-cpoptsy', '--cp2k_opt_symmetry', action='store_true',
+#                     help='Whether the space group is conserved or not.')
+# parser.add_argument('-cptp', '--cp2k_template',
+#                     help='Template file for CP2K software if interested in different options.')
+# parser.add_argument('-cpmm', action='store_true', help='Use Molecular Mechanics instead of DFT.')
+# parser.add_argument('-cpscf', action='store_true',
+#                     help='Use standard diagonalization instead of Orbital Transformation in CP2K calculations.')
+# parser.add_argument('-cpkp', action='store_true', help='Use k-points instead of supercell.')
+# parser.add_argument('-xc', '--exchange_correlation', nargs=1, choices=['BLYP', 'B3LYP', 'PBE', 'PBE0', 'DEFAULT'],
+#                     default=['DEFAULT'],
+#                     help='Exchange-correlation functional. This is a snall selection of the most common functional found in all DFT software. Check the manual of your DFT software for the full rannge of its capabilities, and edit the input file accordingly. DEFAULT corresponds to whatever is provided in the input/template or PBE.')
+# parser.add_argument('-bs', '--basisset', nargs=1, choices=['DZVP', 'TZVP'], default=['DZVP'],
+#                     help='Basis set. This is a snall selection of the most basis sets found in all DFT software. Check the manual of your DFT software for the full rannge of its capabilities, and edit the input file accordingly.')
+# parser.add_argument('-kgrid', nargs=1, type=float, default=[4.e-2],
+#                     help='Point spacing for the k-point grid in the reciprocal space.')
+# parser.add_argument('-potcar', action='store_true',
+#                     help='Create a POTCAR file compatible with the POSCAR being written.')
+# parser.add_argument('-potsrc', '--potcar_source', nargs=1, default=['/home/cazade/Documents/vasp_pp'],
+#                     help='Directory where are the POTCARs for each atom.')
+# parser.add_argument('-kpoints', action='store_true',
+#                     help='Create a KPOINTS file compatible with the POSCAR being written.')
+# parser.add_argument('-incar', action='store_true',
+#                     help='Create a template INCAR file. It uses some of the cp2k options to set the value of ISIF')
+# parser.add_argument('-cpelpi', '--cp2k_elastic_piezo', action='store_true',
+#                     help='Generate as series of strain of the system to obtain the elastic and piezolectric tensors with CP2K.')
+# parser.add_argument('-cpdie', '--cp2k_dielectric', action='store_true',
+#                     help='Generate as series of variations of the electric field to obtain the dielectric tensor with CP2K.')
+# parser.add_argument('-cpelpig', '--cp2k_elastic_piezo_get', action='store_true',
+#                     help='Get the piezoelectric and elastic tensors from a series of strain of the system.')
+# parser.add_argument('-cpdieg', '--cp2k_dielectric_get', action='store_true',
+#                     help='Get the dielectric tensor from a series of variations of the electric field.')
+# parser.add_argument('-cpst', '--cp2k_elastic_piezo_step', nargs=1, type=float, default=[1.e-2],
+#                     help='Strain for the calculation of the elastic and piezolectric tensors with CP2K.')
+# parser.add_argument('-cpef', '--cp2k_dielectric_field', nargs=1, type=float, default=[2.e-4],
+#                     help='Field step for the calculation of dielectric tensor with CP2K.')
+# parser.add_argument('-se', '--symmetry_excluded', nargs=2, type=int, action='append',
+#                     help='Range of atoms excluded from symmetry identification and enforcement. Keywords is repeatable.')
+# parser.add_argument('-vaspelg', '--vasp_elastic_get', action='store_true',
+#                     help='Get the elastic tensor from VASP output file. This file is provided as an input')
+# parser.add_argument('-vasppig', '--vasp_piezo_get', action='store_true',
+#                     help='Get the piezoelectric and dielectric tensors from VASP output file. This file is provided as an input. If both --vasp_elastic_get and --vasp_piezo_get are requested, the files are provided as a list of inputs with the piezoelectric file first.')
+# parser.add_argument('-gmxelpig', '--gmx_elastic_piezo_get', action='store_true',
+#                     help='Get the piezoelectric and elastic tensors from a series of strain of the system. Needs a PSF or TOP file provided via the option -psf')
+# parser.add_argument('-psf', '--psf_file', nargs=1, default=[''],
+#                     help='CHARMM PSF or GROMACS TOP file providing the topology of the system. Required for --gmx_elastic_piezo_get.')
+# parser.add_argument('-cppsf', action='store_true', help='PSF file special formatting for CP2K.')
+# parser.add_argument('-sam', '--select_atom_names', nargs='+',
+#                     help='List of the selected atom names to write in the output files.')
+# parser.add_argument('-check', action='store_true', help='Check that the distance bewteen atoms is at least 0.5 A.')
+#
+# args = parser.parse_args()
+#
+# print(args)
+#
+# # exit()
+#
+#
+# exti = args.input[0].split('.')[-1].strip()
+# exto = args.output[0].split('.')[-1].strip()
+# if ((exti == 'top' or exti == 'itp') and (exto == 'psf')):
+#     top = readTop(args.input[0])
+#     writePsf(args.output[0], top, args)
+#     exit()
+# elif ((exti == 'psf') and (exto == 'top' or exto == 'itp')):
+#     top = readPsf(args.input[0])
+#     writeTop(args.output[0], top, args)
+#     exit()
+# elif ((exti == 'psf') and (exto == 'psf')):
+#     top = readPsf(args.input[0])
+#     writePsf(args.output[0], top, args)
+#     exit()
+# elif ((exti == 'top' or exti == 'itp') and (exto == 'top' or exto == 'itp')):
+#     top = readTop(args.input[0])
+#     writeTop(args.output[0], top)
+#     exit()
+# elif ((exti == 'psf' or exti == 'top' or exti == 'itp') and not (exto == 'psf' or exto == 'top' or exto == 'itp')):
+#     print("Error: Topology conversion requires both input and output to be either .psf, .top, .itp")
+#     exit()
+# elif (not (exti == 'psf' or exti == 'top' or exti == 'itp') and (exto == 'psf' or exto == 'top' or exto == 'itp')):
+#     print("Error: Topology conversion requires both input and output to be either .psf, .top, .itp")
+#     exit()
+#
+# if (args.vasp_elastic_get or args.vasp_piezo_get):
+#     get_tensors_vasp(args)
+#     exit()
+# elif (args.getstress):
+#     get_stress(args.input[0], args.output[0], args)
+#     exit()
+# else:
+#     atoms, a, b, c, isScaled, sysType, spg = io_read(args.input[0])
+#
+# if (not isScaled and a.norm > 0.0 and b.norm > 0.0 and c.norm > 0.0):
+#     isScaled = True
+#     cart2frac(atoms, a, b, c)
+#
+# if (args.check):
+#     if (not isScaled):
+#         print("Error, the coordinates should be fractional.")
+#         exit()
+#     i = 0
+#     xyz = np.zeros((len(atoms), 3))
+#     for at in atoms:
+#         xyz[i][0] = at.x
+#         xyz[i][1] = at.y
+#         xyz[i][2] = at.z
+#         i = i + 1
+#     norm = max(a.norm, b.norm, c.norm)
+#     rMin = 0.8 / norm
+#     print(norm, rMin)
+#     rlist(xyz, rMin)
+#     exit()
+#
+# if (args.select_atom_names is not None):
+#     tmp = []
+#     for at in atoms:
+#         tmp.append(Atom())
+#         cpAtom(tmp[-1], at)
+#     atoms = []
+#     for at in tmp:
+#         if (at.name.strip() in args.select_atom_names):
+#             atoms.append(Atom())
+#             cpAtom(atoms[-1], at)
+#     del tmp
+#
+# if (args.fsym):
+#     find_symmetry(atoms, a, b, c, isScaled, args.hall_number[0], args.symprec[0])
+#     exit()
+#
+# if (args.bsym):
+#     if (args.hall_number[0] <= 0):
+#         print("A Hall number (1-530) is required to obtain the symmetry operations and build the crystal.")
+#         exit()
+#     atoms, isScaled = build_crystal(atoms, a, b, c, isScaled, args.hall_number[0], args)
+#
+# print(isScaled)
+#
+# if (args.make_super_cell[0].strip() == 'undo'):
+#     atoms, a, b, c = undoSuperCell(atoms, a, b, c, isScaled, args.super_cell)
+# elif (args.make_super_cell[0].strip() == 'do'):
+#     atoms, a, b, c = SuperCell(atoms, a, b, c, isScaled, args.super_cell)
+#
+# if (args.strain):
+#     strain(args.input[0], args.output[0], atoms, a, b, c, isScaled, sysType, args)
+# elif (args.cp2k_elastic_piezo and args.cp2k_dielectric):
+#     elastic_piezo_strain(args.input[0], args.output[0], atoms, a, b, c, isScaled, sysType, args)
+#     dielectric_field(args.input[0], args.output[0], atoms, a, b, c, isScaled, sysType, args)
+# elif (args.cp2k_elastic_piezo):
+#     elastic_piezo_strain(args.input[0], args.output[0], atoms, a, b, c, isScaled, sysType, args)
+# elif (args.cp2k_dielectric):
+#     dielectric_field(args.input[0], args.output[0], atoms, a, b, c, isScaled, sysType, args)
+# elif (args.cp2k_elastic_piezo_get or args.cp2k_dielectric_get):
+#     get_tensors(args.input[0], args.output[0], atoms, a, b, c, isScaled, args)
+# elif (args.gmx_elastic_piezo_get):
+#     get_tensors_gmx(args.input[0], args.output[0], atoms, a, b, c, isScaled, args)
+# else:
+#     if ((args.padding[0] > 1e-8) or (args.padding[1] > 1e-8) or (args.padding[1] > 1e-8)):
+#         atoms, a, b, c, isScaled = box_padding(atoms, a, b, c, isScaled, args)
+#     if (args.pbc):
+#         pbc(atoms, a, b, c, isScaled)
+#     for outName in args.output:
+#         io_write(args.input[0], outName, atoms, a, b, c, isScaled, sysType, args.hall_number[0], args, None)
+#
 # exit()
-
-
-exti = args.input[0].split('.')[-1].strip()
-exto = args.output[0].split('.')[-1].strip()
-if ((exti == 'top' or exti == 'itp') and (exto == 'psf')):
-    top = readTop(args.input[0])
-    writePsf(args.output[0], top, args)
-    exit()
-elif ((exti == 'psf') and (exto == 'top' or exto == 'itp')):
-    top = readPsf(args.input[0])
-    writeTop(args.output[0], top, args)
-    exit()
-elif ((exti == 'psf') and (exto == 'psf')):
-    top = readPsf(args.input[0])
-    writePsf(args.output[0], top, args)
-    exit()
-elif ((exti == 'top' or exti == 'itp') and (exto == 'top' or exto == 'itp')):
-    top = readTop(args.input[0])
-    writeTop(args.output[0], top)
-    exit()
-elif ((exti == 'psf' or exti == 'top' or exti == 'itp') and not (exto == 'psf' or exto == 'top' or exto == 'itp')):
-    print("Error: Topology conversion requires both input and output to be either .psf, .top, .itp")
-    exit()
-elif (not (exti == 'psf' or exti == 'top' or exti == 'itp') and (exto == 'psf' or exto == 'top' or exto == 'itp')):
-    print("Error: Topology conversion requires both input and output to be either .psf, .top, .itp")
-    exit()
-
-if (args.vasp_elastic_get or args.vasp_piezo_get):
-    get_tensors_vasp(args)
-    exit()
-elif (args.getstress):
-    get_stress(args.input[0], args.output[0], args)
-    exit()
-else:
-    atoms, a, b, c, isScaled, sysType, spg = io_read(args.input[0])
-
-if (not isScaled and a.norm > 0.0 and b.norm > 0.0 and c.norm > 0.0):
-    isScaled = True
-    cart2frac(atoms, a, b, c)
-
-if (args.check):
-    if (not isScaled):
-        print("Error, the coordinates should be fractional.")
-        exit()
-    i = 0
-    xyz = np.zeros((len(atoms), 3))
-    for at in atoms:
-        xyz[i][0] = at.x
-        xyz[i][1] = at.y
-        xyz[i][2] = at.z
-        i = i + 1
-    norm = max(a.norm, b.norm, c.norm)
-    rMin = 0.8 / norm
-    print(norm, rMin)
-    rlist(xyz, rMin)
-    exit()
-
-if (args.select_atom_names is not None):
-    tmp = []
-    for at in atoms:
-        tmp.append(Atom())
-        cpAtom(tmp[-1], at)
-    atoms = []
-    for at in tmp:
-        if (at.name.strip() in args.select_atom_names):
-            atoms.append(Atom())
-            cpAtom(atoms[-1], at)
-    del tmp
-
-if (args.fsym):
-    find_symmetry(atoms, a, b, c, isScaled, args.hall_number[0], args.symprec[0])
-    exit()
-
-if (args.bsym):
-    if (args.hall_number[0] <= 0):
-        print("A Hall number (1-530) is required to obtain the symmetry operations and build the crystal.")
-        exit()
-    atoms, isScaled = build_crystal(atoms, a, b, c, isScaled, args.hall_number[0], args)
-
-print(isScaled)
-
-if (args.make_super_cell[0].strip() == 'undo'):
-    atoms, a, b, c = undoSuperCell(atoms, a, b, c, isScaled, args.super_cell)
-elif (args.make_super_cell[0].strip() == 'do'):
-    atoms, a, b, c = SuperCell(atoms, a, b, c, isScaled, args.super_cell)
-
-if (args.strain):
-    strain(args.input[0], args.output[0], atoms, a, b, c, isScaled, sysType, args)
-elif (args.cp2k_elastic_piezo and args.cp2k_dielectric):
-    elastic_piezo_strain(args.input[0], args.output[0], atoms, a, b, c, isScaled, sysType, args)
-    dielectric_field(args.input[0], args.output[0], atoms, a, b, c, isScaled, sysType, args)
-elif (args.cp2k_elastic_piezo):
-    elastic_piezo_strain(args.input[0], args.output[0], atoms, a, b, c, isScaled, sysType, args)
-elif (args.cp2k_dielectric):
-    dielectric_field(args.input[0], args.output[0], atoms, a, b, c, isScaled, sysType, args)
-elif (args.cp2k_elastic_piezo_get or args.cp2k_dielectric_get):
-    get_tensors(args.input[0], args.output[0], atoms, a, b, c, isScaled, args)
-elif (args.gmx_elastic_piezo_get):
-    get_tensors_gmx(args.input[0], args.output[0], atoms, a, b, c, isScaled, args)
-else:
-    if ((args.padding[0] > 1e-8) or (args.padding[1] > 1e-8) or (args.padding[1] > 1e-8)):
-        atoms, a, b, c, isScaled = box_padding(atoms, a, b, c, isScaled, args)
-    if (args.pbc):
-        pbc(atoms, a, b, c, isScaled)
-    for outName in args.output:
-        io_write(args.input[0], outName, atoms, a, b, c, isScaled, sysType, args.hall_number[0], args, None)
-
-exit()
