@@ -9,7 +9,7 @@ a2.x, a2.y, a2.z = 0.0, 0.0, 0.0
 a2.name = "O"
 
 # print("Before:", vars(a2))
-# a2.copyAtom(a1)
+# a2.copyFromAtom(a1)
 # print("After:", vars(a2))
 
 # typeatom(a1)

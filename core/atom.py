@@ -30,7 +30,7 @@ class Atom(object):
     el = ' '
     sig = 2.0
 
-    def copyAtom(self, other: "Atom") -> "Atom":
+    def copyFromAtom(self, other: "Atom") -> "Atom":
         """Copy all public fields from other into self.
         Mirrors legacy cpAtom(at1, at2).
         """
@@ -60,6 +60,31 @@ class Atom(object):
         self.nAt = other.nAt
         self.sig = other.sig
         return self
+
+    def copyFromZmat(self, zmat: "Zmat") -> "Atom":
+        """Copy common fields from *zmat* into self.
+        Mirrors legacy cpzmat(zmat, atom).
+        """
+        self.idx = zmat.idx
+        self.name = zmat.name
+        self.loc = zmat.loc
+        self.resName = zmat.resName
+        self.chain = zmat.chain
+        self.resIdx = zmat.resIdx
+        self.inser = zmat.inser
+        self.occ = zmat.occ
+        self.beta = zmat.beta
+        self.segName = zmat.segName
+        self.element = zmat.element
+        self.chg = zmat.chg
+        self.nAt = zmat.nAt
+        self.el = zmat.el
+        self.sig = zmat.sig
+        self.q = zmat.q
+        self.m = zmat.m
+        return self
+
+    
 
 
     def inferAtom(self) -> "Atom":
@@ -98,3 +123,5 @@ class Atom(object):
         self.sig = float(vdw_radii[Z])
 
         return self
+
+
