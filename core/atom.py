@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from ase.data import atomic_masses, vdw_radii, atomic_numbers
 
+
 @dataclass
 class Atom(object):
     header = "ATOM  "
@@ -29,6 +30,7 @@ class Atom(object):
     nAt = 0
     el = ' '
     sig = 2.0
+
 
     def copyFromAtom(self, other: "Atom") -> "Atom":
         """Copy all public fields from other into self.
@@ -61,6 +63,7 @@ class Atom(object):
         self.sig = other.sig
         return self
 
+
     def copyFromZmat(self, zmat: "Zmat") -> "Atom":
         """Copy common fields from *zmat* into self.
         Mirrors legacy cpzmat(zmat, atom).
@@ -83,8 +86,6 @@ class Atom(object):
         self.q = zmat.q
         self.m = zmat.m
         return self
-
-    
 
 
     def inferAtom(self) -> "Atom":
