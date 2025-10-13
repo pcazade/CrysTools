@@ -3,7 +3,7 @@ from crystools import typeatom
 
 a1 = Atom()
 a1.x, a1.y, a1.z = 1.0, 2.0, 3.0
-a1.name = "CAL"
+a1.name = "Cu"
 a2 = Atom()
 a2.x, a2.y, a2.z = 0.0, 0.0, 0.0
 a2.name = "O"
@@ -14,4 +14,4 @@ a2.name = "O"
 
 # typeatom(a1)
 a1.inferAtom()
-print(a1.el)
+print(a1.sig)
