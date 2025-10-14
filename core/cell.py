@@ -4,6 +4,7 @@ import numpy as np
 from numpy.typing import NDArray
 from ase.cell import Cell as ASECell
 import numpy.linalg as la
+import sys, math
 
 
 @dataclass
@@ -49,8 +50,6 @@ class Cell:
 
 
     def cart2frac(self, atoms):
-        import numpy as np
-        import numpy.linalg as la
         r = self.hmat
         ir = la.inv(r)
         tir = np.transpose(ir)
@@ -63,7 +62,6 @@ class Cell:
 
 
     def frac2cart(self, atoms):
-        import numpy as np
         r = self.hmat
         tr = np.transpose(r)
         for at in atoms:
@@ -73,11 +71,9 @@ class Cell:
             at.y = xyz[1]
             at.z = xyz[2]
 
+
     # wz function for 1)reciprocal lattice vector & 2)unit cell volume calculation
     def wz(self):
-        import sys, math
-        import numpy as np
-
         r = self.hmat  # rows: a, b, c
         a = r[0]
         b = r[1]
