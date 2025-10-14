@@ -47,6 +47,7 @@ class Cell:
     # def mat2box(self):
     #     self.a, self.b, self.c, self.alpha, self.beta, self.gamma = ASECell(self.hmat).cellpar()
 
+
     def cart2frac(self, atoms):
         import numpy as np
         import numpy.linalg as la
@@ -71,3 +72,37 @@ class Cell:
             at.x = xyz[0]
             at.y = xyz[1]
             at.z = xyz[2]
+
+    # wz function for 1)reciprocal lattice vector & 2)unit cell volume calculation
+    def wz(self):
+        import sys, math
+        import numpy as np
+
+        r = self.hmat  # rows: a, b, c
+        a = r[0]
+        b = r[1]
+        c = r[2]
+
+        # Cross products (numerators)
+        ra = np.array([b[1] * c[2] - c[1] * b[2],
+                       b[2] * c[0] - c[2] * b[0],
+                       b[0] * c[1] - c[0] * b[1]], dtype=float)  # b × c
+        rb = np.array([c[1] * a[2] - a[1] * c[2],
+                       c[2] * a[0] - a[2] * c[0],
+                       c[0] * a[1] - a[0] * c[1]], dtype=float)  # c × a
+        rc = np.array([a[1] * b[2] - b[1] * a[2],
+                       a[2] * b[0] - b[2] * a[0],
+                       a[0] * b[1] - b[0] * a[1]], dtype=float)  # a × b
+
+        # Determinant = volume (signed)
+        det = float(a[0] * ra[0] + a[1] * ra[1] + a[2] * ra[2])
+
+        if det > sys.float_info.min:
+            ra /= det
+            rb /= det
+            rc /= det
+
+        vol = abs(det)
+
+        return ra, rb, rc, vol
+
