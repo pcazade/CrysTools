@@ -59,3 +59,15 @@ class Cell:
             at.x = uvw[0]
             at.y = uvw[1]
             at.z = uvw[2]
+
+
+    def frac2cart(self, atoms):
+        import numpy as np
+        r = self.hmat
+        tr = np.transpose(r)
+        for at in atoms:
+            uvw = np.array([at.x, at.y, at.z])
+            xyz = np.matmul(tr, uvw)
+            at.x = xyz[0]
+            at.y = xyz[1]
+            at.z = xyz[2]
