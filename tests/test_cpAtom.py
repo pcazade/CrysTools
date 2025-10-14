@@ -1,18 +1,18 @@
 from core.atom import Atom
+from core.cell import Cell
 from crystools import typeatom
+import numpy as np
 
-a1 = Atom()
-a1.x, a1.y, a1.z = 1.0, 2.0, 3.0
-a1.name = "CLA"
-a2 = Atom()
-a2.x, a2.y, a2.z = 0.0, 0.0, 0.0
-a2.name = "O"
+a=Cell(a=5, b=6, c=7, alpha=90, beta=100, gamma=120)
+a.lp2box()
+# print(a.hmat)
+# print(a.gmat)
 
-# print("Before:", vars(a2))
-# a2.copyFromAtom(a1)
-# print("After:", vars(a2))
-
-# typeatom(a1)
-a1.inferAtom()
-print(a1.el)
-print(a1.sig)
+b = np.array([
+                 [5.,          0.,          0.],
+                 [-3.,          5.19615242,  0.],
+             [-1.21553724, - 0.70179075, 6.85783923],
+])
+c=Cell(hmat=b)
+c.mat2box()
+print(c.a,c.b,c.c,c.alpha,c.beta,c.gamma)

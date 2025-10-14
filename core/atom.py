@@ -4,32 +4,32 @@ from ase.data import atomic_masses, vdw_radii, atomic_numbers
 
 
 @dataclass
-class Atom(object):
-    header = "ATOM  "
-    idx = 1
-    name = " H  "
-    loc = ' '
-    resName = "DUM"
-    chain = 'A'
-    resIdx = 1
-    aType = "DUM"
-    inser = ' '
-    x = 0.0
-    y = 0.0
-    z = 0.0
-    vx = 0.0
-    vy = 0.0
-    vz = 0.0
-    occ = 1.0
-    beta = 0.0
-    segName = "P1  "
-    element = " H"
-    chg = "1 "
-    q = 0.0
-    m = 0.0
-    nAt = 0
-    el = ' '
-    sig = 2.0
+class Atom():
+    header:str = "ATOM  "
+    idx:int = 1
+    name:str = " H  "
+    loc:str = ' '
+    resName:str = "DUM"
+    chain:str = 'A'
+    resIdx:int = 1
+    aType:str = "DUM"
+    inser:str = ' '
+    x:float = 0.0
+    y:float = 0.0
+    z:float = 0.0
+    vx:float = 0.0
+    vy:float = 0.0
+    vz:float = 0.0
+    occ:float = 1.0
+    beta:float = 0.0
+    segName:str = "P1  "
+    element:str = " H"
+    chg:str = "1 "
+    q:float = 0.0
+    m:float = 0.0
+    nAt:int = 0
+    el:str = ' '
+    sig:str = 2.0
 
 
     def copyFromAtom(self, other: "Atom") -> "Atom":
