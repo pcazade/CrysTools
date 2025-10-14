@@ -47,3 +47,15 @@ class Cell:
     # def mat2box(self):
     #     self.a, self.b, self.c, self.alpha, self.beta, self.gamma = ASECell(self.hmat).cellpar()
 
+    def cart2frac(self, atoms):
+        import numpy as np
+        import numpy.linalg as la
+        r = self.hmat
+        ir = la.inv(r)
+        tir = np.transpose(ir)
+        for at in atoms:
+            xyz = np.array([at.x, at.y, at.z])
+            uvw = np.matmul(tir, xyz)
+            at.x = uvw[0]
+            at.y = uvw[1]
+            at.z = uvw[2]
