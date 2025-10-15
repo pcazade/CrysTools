@@ -102,3 +102,42 @@ class Cell:
 
         return ra, rb, rc, vol
 
+
+    def pbc(self, atoms, isScaled: bool):
+        """
+        Apply periodic boundary conditions in-place.
+        - If isScaled is True: atoms are fractional and are wrapped to [0,1).
+        - If isScaled is False: atoms are Cartesian; convert -> wrap -> convert back.
+        """
+        if not np.any(self.hmat):
+            raise ValueError("Cell.hmat is not set; cannot apply PBC.")
+
+        # Lattice (direct) vectors from the cell matrix (rows are a, b, c)
+        a = self.hmat[0]
+        b = self.hmat[1]
+        c = self.hmat[2]
+
+        # Reciprocal vectors (and volume) from your existing method
+        ra, rb, rc, vol = self.wz()
+
+        if isScaled:
+            for at in atoms:
+                at.x -= math.floor(at.x)
+                at.y -= math.floor(at.y)
+                at.z -= math.floor(at.z)
+        else:
+            for at in atoms:
+                # Cartesian -> fractional via dot with reciprocal vectors
+                xt = at.x * ra[0] + at.y * ra[1] + at.z * ra[2]
+                yt = at.x * rb[0] + at.y * rb[1] + at.z * rb[2]
+                zt = at.x * rc[0] + at.y * rc[1] + at.z * rc[2]
+
+                # Wrap to [0,1)
+                xt -= math.floor(xt)
+                yt -= math.floor(yt)
+                zt -= math.floor(zt)
+
+                # Fractional -> Cartesian via linear combo of direct vectors
+                at.x = xt * a[0] + yt * b[0] + zt * c[0]
+                at.y = xt * a[1] + yt * b[1] + zt * c[1]
+                at.z = xt * a[2] + yt * b[2] + zt * c[2]
