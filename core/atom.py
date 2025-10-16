@@ -24,7 +24,7 @@ class Atom():
     beta:float = 0.0
     segName:str = "P1  "
     element:str = " H"
-    chg:str = "1 "
+    chg:str = "1 " # confusion(is it charge group that is found within [atoms] section in itp file)
     q:float = 0.0
     m:float = 0.0
     nAt:int = 0
