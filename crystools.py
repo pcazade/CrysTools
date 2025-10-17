@@ -572,6 +572,11 @@ def readTop(fname):
     isDihe=False
     isImpr=False
     isCmap=False
+    idxw=0
+    idxs=0
+    idxo=0
+    idxc=0
+    idxp=0
     fi=open(fname,'r')
     for line in fi:
         #if(len(itp)>2):
@@ -591,7 +596,6 @@ def readTop(fname):
         if('[ molecules ]' in line):
             isMolecules=True
             top=Topol()
-            print("Okay")
             top.molName='System'
             top.atoms=[]
             top.bonds=[]
@@ -753,23 +757,42 @@ def readTop(fname):
         if(isMolecules):
             nMol=int(words[1])
             molName=str(words[0])
-            #print(isMolecules,nMol,molName)
             idx=0
             for i in range(len(itp)):
                 if(itp[i].molName.strip()==molName.strip()):
                     idx=i
                     break
+            if(molName.strip()=='SOL' or molName.strip()=='TIP3'):
+                seg='W'
+                idxw+=1
+            elif(molName.strip()=='NA' or molName.strip()=='SOD'):
+                seg='S'
+                idxs+=1
+            elif(molName.strip()=='CL'):
+                seg='C'
+                idxc+=1
+            elif(len(itp[idx].atoms)<50 or "Other" in molName):
+                seg='O'
+                idxo+=1
+            elif("Protein" in molName):
+                seg='P'
+                idxp+=1
+            else:
+                seg='P'
+                idxp+=1
             for i in range(nMol):
-                if(molName.strip()=='SOL'):
-                    segName='W'
-                elif(molName.strip()=='NA'):
-                    segName='S'
+                if(molName.strip()=='SOL' or molName.strip()=='TIP3'):
+                    segName=seg.strip()+str(idxw)
+                elif(molName.strip()=='NA' or molName.strip()=='SOD'):
+                    segName=seg.strip()+str(idxs)
                 elif(molName.strip()=='CL'):
-                    segName='C'
-                elif(len(itp[idx].atoms)<50):
-                    segName='O'
+                    segName=seg.strip()+str(idxc)
+                elif(len(itp[idx].atoms)<50 or "Other" in molName):
+                    segName=seg.strip()+str(idxo)
+                elif("Protein" in molName):
+                    segName=seg.strip()+str(idxp)+hex(i+1)[2:]
                 else:
-                    segName='P'+str(i+1)
+                    segName=seg.strip()+str(idxp)+hex(i+1)[2:]
 
                 iShift=len(top.atoms)
                 rShift=0
@@ -783,17 +806,17 @@ def readTop(fname):
                     top.atoms[-1].resIdx+=rShift
                     top.atoms[-1].segName=segName
                 for pair in itp[idx].pairs:
-                    top.pairs.append([pair[0],pair[1],pair[2]])
+                    top.pairs.append([pair[0]+iShift,pair[1]+iShift,pair[2]])
                 for bond in itp[idx].bonds:
-                    top.bonds.append([bond[0],bond[1],bond[2]])
+                    top.bonds.append([bond[0]+iShift,bond[1]+iShift,bond[2]])
                 for ang in itp[idx].angles:
-                    top.angles.append([ang[0],ang[1],ang[2],ang[3]])
+                    top.angles.append([ang[0]+iShift,ang[1]+iShift,ang[2]+iShift,ang[3]])
                 for dih in itp[idx].dihedrals:
-                    top.dihedrals.append([dih[0],dih[1],dih[2],dih[3],dih[4]])
+                    top.dihedrals.append([dih[0]+iShift,dih[1]+iShift,dih[2]+iShift,dih[3]+iShift,dih[4]])
                 for imp in itp[idx].impropers:
-                    top.impropers.append([imp[0],imp[1],imp[2],imp[3],imp[4]])
+                    top.impropers.append([imp[0]+iShift,imp[1]+iShift,imp[2]+iShift,imp[3]+iShift,imp[4]])
                 for cm in itp[idx].cmap:
-                    top.cmap.append([cm[0],cm[1],cm[2],cm[3],cm[4],cm[5]])
+                    top.cmap.append([cm[0]+iShift,cm[1]+iShift,cm[2]+iShift,cm[3]+iShift,cm[4]+iShift,cm[5]])
             #if(len(itp)>2):
             #    print(line)
             #    print(itp[2].molName,len(itp[2].atoms),len(itp[2].bonds),len(itp[2].pairs))
@@ -957,6 +980,9 @@ def readItp(fname,itp):
             itp[-1].bonds.append([int(words[0]),int(words[1]),int(words[2])])
             continue
         if(isAngl):
+            if(('SOL' in itp[-1].atoms[int(words[1])-1].resName) or ('TIP3' in itp[-1].atoms[int(words[1])-1].resName)):
+                if(itp[-1].atoms[int(words[1])-1].aType.strip()=='HT'):
+                    continue
             itp[-1].angles.append([int(words[0]),int(words[1]),int(words[2]),int(words[3])])
             continue
         if(isDihe):
@@ -1053,6 +1079,7 @@ def readPsf(fname):
     isCrt=False
     isExt=False
     isFirst=True
+    excluded=[]
     for line in fi:
         if(isFirst):
             isFirst=False
@@ -1116,6 +1143,8 @@ def readPsf(fname):
                     psf.bonds.append([])
                     psf.bonds[i].append(int(st[0:10]))
                     psf.bonds[i].append(int(st[10:20]))
+                    psf.bonds[i].append(1)
+                    excluded.append([int(st[0:10]),int(st[10:20])])
                     i+=1
             else:
                 for j in range(int(len(line)/16)):
@@ -1123,6 +1152,8 @@ def readPsf(fname):
                     psf.bonds.append([])
                     psf.bonds[i].append(int(st[0:8]))
                     psf.bonds[i].append(int(st[8:16]))
+                    psf.bonds[i].append(1)
+                    excluded.append([int(st[0:8]),int(st[8:16])])
                     i+=1
         if(isTheta and i<psf.nAngles):
             if(isExt):
@@ -1132,6 +1163,8 @@ def readPsf(fname):
                     psf.angles[i].append(int(st[0:10]))
                     psf.angles[i].append(int(st[10:20]))
                     psf.angles[i].append(int(st[20:30]))
+                    psf.angles[i].append(5)
+                    excluded.append([int(st[0:10]),int(st[20:30])])
                     i+=1
             else:
                 for j in range(int(len(line)/24)):
@@ -1140,6 +1173,8 @@ def readPsf(fname):
                     psf.angles[i].append(int(st[0:8]))
                     psf.angles[i].append(int(st[8:16]))
                     psf.angles[i].append(int(st[16:24]))
+                    psf.angles[i].append(5)
+                    excluded.append([int(st[0:8]),int(st[16:24])])
                     i+=1
         if(isPhi and i<psf.nDihedrals):
             if(isExt):
@@ -1150,6 +1185,7 @@ def readPsf(fname):
                     psf.dihedrals[i].append(int(st[10:20]))
                     psf.dihedrals[i].append(int(st[20:30]))
                     psf.dihedrals[i].append(int(st[30:40]))
+                    psf.dihedrals[i].append(9)
                     i+=1
             else:
                 for j in range(int(len(line)/32)):
@@ -1159,6 +1195,7 @@ def readPsf(fname):
                     psf.dihedrals[i].append(int(st[8:16]))
                     psf.dihedrals[i].append(int(st[16:24]))
                     psf.dihedrals[i].append(int(st[24:32]))
+                    psf.dihedrals[i].append(9)
                     i+=1
         if(isImphi and i<psf.nImpropers):
             if(isExt):
@@ -1169,6 +1206,7 @@ def readPsf(fname):
                     psf.impropers[i].append(int(st[10:20]))
                     psf.impropers[i].append(int(st[20:30]))
                     psf.impropers[i].append(int(st[30:40]))
+                    psf.impropers[i].append(2)
                     i+=1
             else:
                 for j in range(int(len(line)/32)):
@@ -1178,6 +1216,7 @@ def readPsf(fname):
                     psf.impropers[i].append(int(st[8:16]))
                     psf.impropers[i].append(int(st[16:24]))
                     psf.impropers[i].append(int(st[24:32]))
+                    psf.impropers[i].append(2)
                     i+=1
         if(isCrt and i<psf.nCmap):
             if(isExt):
@@ -1190,6 +1229,7 @@ def readPsf(fname):
                 #psf.cmap[i].append(int(line[50:60]))
                 #psf.cmap[i].append(int(line[60:70]))
                 psf.cmap[i].append(int(line[70:80]))
+                psf.cmap[i].append(1)
                 i+=1
             else:
                 psf.cmap.append([])
@@ -1201,6 +1241,7 @@ def readPsf(fname):
                 #psf.cmap[i].append(int(line[40:48]))
                 #psf.cmap[i].append(int(line[48:56]))
                 psf.cmap[i].append(int(line[56:64]))
+                psf.cmap[i].append(1)
                 i+=1
         if(isAtom and i>=psf.nAtoms):
             isAtom=False
@@ -1214,6 +1255,9 @@ def readPsf(fname):
             isImphi=False
         if(isCrt and i>=psf.nCmap):
             isCrt=False
+    for dihe in psf.dihedrals:
+        if( ([dihe[0],dihe[3]] not in excluded) and ([dihe[3],dihe[0]] not in excluded) ):
+            psf.pairs.append([dihe[0],dihe[3],1])
     fi.close()
     return psf
 
@@ -2422,7 +2466,7 @@ def readXyz(fName):
     fi.close()
     return(atoms,a,b,c)
 
-def writeXyz(fName,atoms,a,b,c):
+def writeXyz(fName,atoms,a,b,c,args):
     fo=open(fName,'w')
     fo.write("%d\n" % (len(atoms)))
     if(a.norm>0.0 and b.norm>0.0 and c.norm>0.0):
@@ -2434,7 +2478,10 @@ def writeXyz(fName,atoms,a,b,c):
         fo.write("%s\n" % ("System"))
     for at in atoms:
         typeatom(at)
-        fo.write("%s %20.10E %20.10E %20.10E\n" % (at.el,at.x,at.y,at.z))
+        if(args.cpmm):
+            fo.write("%8s %25.16E %25.16E %25.16E\n" % (at.name,at.x,at.y,at.z))
+        else:
+            fo.write("%8s %25.16E %25.16E %25.16E\n" % (at.el,at.x,at.y,at.z))
     fo.close()
     return
 
@@ -3104,7 +3151,7 @@ def writeCp2kDefault(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire):
         dataset=get_dataset(atoms,hmat,hall_number,args.symprec[0])
         #print('Hall',hall_number)
     print('Space Group:',dataset['number'])
-    if(args.cp2k_elastic_piezo):
+    if(args.cp2k_elastic_piezo or args.strain):
         bravais_lattice='TRICLINIC'
     elif(dataset['number']<=2):
         if( math.fabs(90.0-al)<=1e-2 and math.fabs(90.0-be)<=1e-2 and math.fabs(90.0-ga)<=1e-2 ):
@@ -3805,7 +3852,7 @@ def strain(inName,outName,atoms,a,b,c,isScaled,sysType,args):
             sc.y=hs[2,1]
             sc.z=hs[2,2]
             wz(sa,sb,sc)
-            fname=basename+'.'+args.strain_axis[0].strip()+'_'+s.strip()+'.'+ext
+            fname=basename+'.'+args.strain_axis[0].strip()+'_'+str(s).strip()+'.'+ext
             io_write(inName,fname,atoms,sa,sb,sc,isScaled,sysType,0,args,None)
     return
 
@@ -4121,7 +4168,7 @@ def io_write(inName,outName,atoms,a,b,c,isScaled,sysType,hall_number,args,dire):
         if(isScaled):
             isScaled=False
             frac2cart(atoms,a,b,c)
-        writeXyz(outName,atoms,a,b,c)
+        writeXyz(outName,atoms,a,b,c,args)
     elif(ext=='inp'):
         writeCp2k(inName,outName,atoms,a,b,c,isScaled,hall_number,args,dire)
     elif(ext=='cry' or ext=='d12'):
@@ -4552,6 +4599,7 @@ def get_tensors(inName,outName,atoms,a0,b0,c0,isScaled,args):
     int2debye=1.602176634e-29/3.33564e-30
     debye2int=3.33564e-30/1.602176634e-29
     debye2au=3.33564
+    debye=1.0e+21*1.0E-10*299792458.0*1.602176487E-19
 
     ev=np.zeros((3,6))
     cv=np.zeros((6,6))
@@ -4622,7 +4670,7 @@ def get_tensors(inName,outName,atoms,a0,b0,c0,isScaled,args):
             for j in range(-1,2):
                 if(j==0):
                     continue
-                fname=basename+'.strain_'+str(i+1)+'_'+str(j)+'.cpout'
+                fname=basename+'.strain_'+str(i+1)+'_'+str(j)+'.out'
                 print(fname)
                 mu,a,b,c=getDipoleCP2K(fname)
                 print(mu)
@@ -4739,6 +4787,70 @@ def get_tensors(inName,outName,atoms,a0,b0,c0,isScaled,args):
     if(args.cp2k_elastic_piezo_get and args.cp2k_dielectric_get):
         g=1.e-9*np.matmul(be,d)
 
+    if(args.dipole_decomp):
+        evw=np.zeros((3,6))
+        evp=np.zeros((3,6))
+        ext=args.psf_file[0].split('.')[-1]
+        if('psf' in ext):
+            top=readPsf(args.psf_file[0])
+        elif('top' in ext):
+            top=readTop(args.psf_file[0])
+        bfw=np.zeros((6,2,3))
+        bfp=np.zeros((6,2,3))
+        idx=[[0,0],[1,1],[2,2],[2,1],[2,0],[1,0]]
+        for i in range(6):
+            ii=idx[i][0]
+            jj=idx[i][1]
+            k=0
+            for j in range(-1,2):
+                if(j==0):
+                    continue
+                fname=basename+'.strain_'+str(i+1)+'_'+str(j)+'-1.restart'
+                print(fname)
+                atoms,a,b,c,isScaled,sysType,spg=io_read(fname)
+                prot=[]
+                wat=[]
+                for at in atoms:
+                    if (at.resName.strip()=='SOL') or (at.resName.strip()=='TIP3'):
+                        wat.append(Atom())
+                        cpAtom(wat[-1],at)
+                    else:
+                        prot.append(Atom())
+                        cpAtom(prot[-1],at)
+                h2=np.array([[a.x,a.y,a.z],[b.x,b.y,b.z],[c.x,c.y,c.z]])
+                bpw=crystal_dipole(wat,h2,top,isScaled)
+                bpp=crystal_dipole(prot,h2,top,isScaled)
+                muw=np.matmul(th,bpw)*debye
+                print("Water Dipole Moment|",i,j,muw)
+                mup=np.matmul(th,bpp)*debye
+                print("Protein Dipole Moment|",i,j,mup)
+                bfw[i,k,:]=bpw
+                bfp[i,k,:]=bpp
+                k=k+1
+    
+        h=args.cp2k_elastic_piezo_step[0]/debye2au
+        print(args.cp2k_elastic_piezo_step[0],debye2au)
+        ew=dm_pbc(bfw,th)
+        ew=ew*int2debye/(2*h*vol0)
+        ew=sym_tensor3(ew,rotations,nop,hmat)
+        print(ew)
+        ep=dm_pbc(bfp,th)
+        ep=ep*int2debye/(2*h*vol0)
+        ep=sym_tensor3(ep,rotations,nop,hmat)
+        print(ep)
+    
+        for i in range(3):
+            for k in range(6):
+                kk=idx[k][0]
+                ll=idx[k][1]
+                evw[i][k]=ew[i][kk][ll]
+                evp[i][k]=ep[i][kk][ll]
+
+        dw=1.e3*np.matmul(evw,ci)
+        dp=1.e3*np.matmul(evp,ci)
+
+        print_tensors_decomp(outName,evw,dw,evp,dp)
+        
     print_tensors(outName,args,ev,cv,ci,d,ep,g,kv,yv,gv,pv,kr,yr,gr,pr,kh,yh,gh,ph)
 
     return
@@ -4794,8 +4906,6 @@ def get_tensors_gmx(inName,outName,atoms,a0,b0,c0,isScaled,args):
         top=readPsf(args.psf_file[0])
     elif('top' in ext):
         top=readTop(args.psf_file[0])
-        writeTop('debug.top',top)
-        #exit()
     
     th=np.transpose(hmat)
     tih=np.transpose(la.inv(hmat))
@@ -4847,7 +4957,7 @@ def get_tensors_gmx(inName,outName,atoms,a0,b0,c0,isScaled,args):
                 syst,a,b,c,isScaled,sysType,spg=io_read(fname)
                 h2=np.array([[a.x,a.y,a.z],[b.x,b.y,b.z],[c.x,c.y,c.z]])
                 tih2=np.transpose(la.inv(h2))
-                bp=crystal_dipole(syst,hmat,top)
+                bp=crystal_dipole(syst,h2,top,isScaled)
                 #bp=np.matmul(tih2,mu)
                 bf[i,k,:]=bp #*debye2int
                 k=k+1
@@ -4913,7 +5023,7 @@ def get_tensors_gmx(inName,outName,atoms,a0,b0,c0,isScaled,args):
 
     return
 
-def crystal_dipole(atoms,hm,top):
+def crystal_dipole(atoms,hm,top,isScaled):
     debye=1.0e+21*1.0E-10*299792458.0*1.602176487E-19
     thm=np.transpose(hm)
     ihm=la.inv(hm)
@@ -4921,7 +5031,12 @@ def crystal_dipole(atoms,hm,top):
     ga=np.ones((3),complex)
     for j in range(len(atoms)):
         r=np.array([atoms[j].x,atoms[j].y,atoms[j].z])
-        t=2.0*math.pi*np.matmul(tihm,r)
+        if(not isScaled):
+            r=np.matmul(tihm,r)
+        r[0]-=math.floor(r[0])
+        r[1]-=math.floor(r[1])
+        r[2]-=math.floor(r[2])
+        t=2.0*math.pi*r
         for i in range(3):
             z=(complex(np.cos(t[i]),np.sin(t[i])))**(-top.atoms[j].q)
             ga[i]=ga[i]*z
@@ -5004,6 +5119,50 @@ def print_tensors(outName,args,e,c,ci,d,ep,g,kv,yv,gv,pv,kr,yr,gr,pr,kh,yh,gh,ph
         fo.write("2 %10.3lf%10.3lf%10.3lf%10.3lf%10.3lf%10.3lf\n" % (g[1][0],g[1][1],g[1][2],g[1][3],g[1][4],g[1][5]) )
         fo.write("3 %10.3lf%10.3lf%10.3lf%10.3lf%10.3lf%10.3lf\n" % (g[2][0],g[2][1],g[2][2],g[2][3],g[2][4],g[2][5]) )
         fo.write('\n')
+    fo.close()
+    return
+
+def print_tensors_decomp(outName,args,ew,dw,ep,dp):
+    a1='     1    '
+    a2='     2    '
+    a3='     3    '
+    a4='     4    '
+    a5='     5    '
+    a6='     6    '
+    fo=open("pz_decomp.dat",'w')
+    if(args.cp2k_elastic_piezo_get or args.gmx_elastic_piezo_get):
+        ew=sym_tensor2_cleaner(ew)
+        fo.write('Piezoelectric Charge Constants [e] (C/m^2)\n')
+        fo.write('  %10s%10s%10s%10s%10s%10s\n' % (a1,a2,a3,a4,a5,a6))
+        fo.write("1 %10.3lf%10.3lf%10.3lf%10.3lf%10.3lf%10.3lf\n" % (ew[0][0],ew[0][1],ew[0][2],ew[0][3],ew[0][4],ew[0][5]) )
+        fo.write("2 %10.3lf%10.3lf%10.3lf%10.3lf%10.3lf%10.3lf\n" % (ew[1][0],ew[1][1],ew[1][2],ew[1][3],ew[1][4],ew[1][5]) )
+        fo.write("3 %10.3lf%10.3lf%10.3lf%10.3lf%10.3lf%10.3lf\n" % (ew[2][0],ew[2][1],ew[2][2],ew[2][3],ew[2][4],ew[2][5]) )
+        fo.write('\n')
+    
+        dw=sym_tensor2_cleaner(dw)
+        fo.write('Piezoelectric Strain Constants [d] (pC/N)\n')
+        fo.write('  %10s%10s%10s%10s%10s%10s\n' % (a1,a2,a3,a4,a5,a6))
+        fo.write("1 %10.3lf%10.3lf%10.3lf%10.3lf%10.3lf%10.3lf\n" % (dw[0][0],dw[0][1],dw[0][2],dw[0][3],dw[0][4],dw[0][5]) )
+        fo.write("2 %10.3lf%10.3lf%10.3lf%10.3lf%10.3lf%10.3lf\n" % (dw[1][0],dw[1][1],dw[1][2],dw[1][3],dw[1][4],dw[1][5]) )
+        fo.write("3 %10.3lf%10.3lf%10.3lf%10.3lf%10.3lf%10.3lf\n" % (dw[2][0],dw[2][1],dw[2][2],dw[2][3],dw[2][4],dw[2][5]) )
+        fo.write('\n')
+
+        ep=sym_tensor2_cleaner(ep)
+        fo.write('Piezoelectric Charge Constants [e] (C/m^2)\n')
+        fo.write('  %10s%10s%10s%10s%10s%10s\n' % (a1,a2,a3,a4,a5,a6))
+        fo.write("1 %10.3lf%10.3lf%10.3lf%10.3lf%10.3lf%10.3lf\n" % (ep[0][0],ep[0][1],ep[0][2],ep[0][3],ep[0][4],ep[0][5]) )
+        fo.write("2 %10.3lf%10.3lf%10.3lf%10.3lf%10.3lf%10.3lf\n" % (ep[1][0],ep[1][1],ep[1][2],ep[1][3],ep[1][4],ep[1][5]) )
+        fo.write("3 %10.3lf%10.3lf%10.3lf%10.3lf%10.3lf%10.3lf\n" % (ep[2][0],ep[2][1],ep[2][2],ep[2][3],ep[2][4],ep[2][5]) )
+        fo.write('\n')
+    
+        dp=sym_tensor2_cleaner(dp)
+        fo.write('Piezoelectric Strain Constants [d] (pC/N)\n')
+        fo.write('  %10s%10s%10s%10s%10s%10s\n' % (a1,a2,a3,a4,a5,a6))
+        fo.write("1 %10.3lf%10.3lf%10.3lf%10.3lf%10.3lf%10.3lf\n" % (dp[0][0],dp[0][1],dp[0][2],dp[0][3],dp[0][4],dp[0][5]) )
+        fo.write("2 %10.3lf%10.3lf%10.3lf%10.3lf%10.3lf%10.3lf\n" % (dp[1][0],dp[1][1],dp[1][2],dp[1][3],dp[1][4],dp[1][5]) )
+        fo.write("3 %10.3lf%10.3lf%10.3lf%10.3lf%10.3lf%10.3lf\n" % (dp[2][0],dp[2][1],dp[2][2],dp[2][3],dp[2][4],dp[2][5]) )
+        fo.write('\n')
+    
     fo.close()
     return
 
