@@ -133,5 +133,5 @@ class ITP:
 # Optional: a functional wrapper
 def readItp(fname: str) -> List[Topology]:
     tops: List[Topology] = []
-    ITP.readItp(fname, tops)
+    ITP.itpReader(fname, tops)
     return tops
