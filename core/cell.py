@@ -50,9 +50,9 @@ class Cell:
 
 
     def cart2frac(self, atoms):
-        r = self.hmat
-        ir = la.inv(r)
-        tir = np.transpose(ir)
+        # r = self.hmat
+        # ir = la.inv(r)
+        tir = np.transpose(self.gmat)
         for at in atoms:
             xyz = np.array([at.x, at.y, at.z])
             uvw = np.matmul(tir, xyz)
@@ -62,8 +62,8 @@ class Cell:
 
 
     def frac2cart(self, atoms):
-        r = self.hmat
-        tr = np.transpose(r)
+        # r = self.hmat
+        tr = np.transpose(self.hmat)
         for at in atoms:
             uvw = np.array([at.x, at.y, at.z])
             xyz = np.matmul(tr, uvw)
@@ -80,15 +80,19 @@ class Cell:
         c = r[2]
 
         # Cross products (numerators)
-        ra = np.array([b[1] * c[2] - c[1] * b[2],
-                       b[2] * c[0] - c[2] * b[0],
-                       b[0] * c[1] - c[0] * b[1]], dtype=float)  # b × c
-        rb = np.array([c[1] * a[2] - a[1] * c[2],
-                       c[2] * a[0] - a[2] * c[0],
-                       c[0] * a[1] - a[0] * c[1]], dtype=float)  # c × a
-        rc = np.array([a[1] * b[2] - b[1] * a[2],
-                       a[2] * b[0] - b[2] * a[0],
-                       a[0] * b[1] - b[0] * a[1]], dtype=float)  # a × b
+        # ra = np.array([b[1] * c[2] - c[1] * b[2],
+        #                b[2] * c[0] - c[2] * b[0],
+        #                b[0] * c[1] - c[0] * b[1]], dtype=float)  # b × c
+        # rb = np.array([c[1] * a[2] - a[1] * c[2],
+        #                c[2] * a[0] - a[2] * c[0],
+        #                c[0] * a[1] - a[0] * c[1]], dtype=float)  # c × a
+        # rc = np.array([a[1] * b[2] - b[1] * a[2],
+        #                a[2] * b[0] - b[2] * a[0],
+        #                a[0] * b[1] - b[0] * a[1]], dtype=float)  # a × b
+
+        ra=self.gmat[0,:] # First row of gmat
+        rb=self.gmat[1,:] # Second row of gmat
+        rc=self.gmat[2,:] # Third row of gmat
 
         # Determinant = volume (signed)
         det = float(a[0] * ra[0] + a[1] * ra[1] + a[2] * ra[2])

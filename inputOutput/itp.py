@@ -1,7 +1,6 @@
 # === Refactor for crystools.py: Read Write ITP file - OOP methods ===
 from __future__ import annotations
 import re
-from dataclasses import dataclass, field  # only needed here if you keep local Atom/Topol; otherwise remove
 from typing import List, Optional
 from core.topology import Topology
 from core.atom import Atom
@@ -16,12 +15,6 @@ def _strip_comment(line: str) -> str:
     if line.lstrip().startswith('#') and not line.lstrip().lower().startswith('#include'):
         return ""
     return line
-
-
-# def _ints(words, n):
-#     if len(words) < n:
-#         raise ValueError(f"Expected {n} integers, got {len(words)}: {words}")
-#     return [int(words[i]) for i in range(n)]
 
 
 class ITP:
@@ -42,7 +35,7 @@ class ITP:
         """
         current_section: Optional[str] = None
         topology: Optional[Topology] = None
-        dihedrals_block_count  = 0  # fallback for "second [ dihedrals ] means impropers"
+        bond_undir = set()  # store undirected bonds as frozenset({a,b})
 
         with open(fname, "r", encoding="utf-8") as fh:
             for raw in fh:
@@ -60,9 +53,7 @@ class ITP:
                     if section == "moleculetype":
                         topology = Topology()
                         itp.append(topology)
-                        dihedrals_block_count = 0
-                    elif section == "dihedrals": # to keep track of how many times we are getting dihedrals to refer to improper dihedrals
-                        dihedrals_block_count += 1  # <-- count blocks, not lines
+                        bond_undir.clear()
                     continue
 
                 # If we don't have a section yet, skip
@@ -106,6 +97,8 @@ class ITP:
                     # i j funct
                     i, j, funct = [int(words[i]) for i in range(3)]
                     topology.bonds.append([i, j, funct])
+                    # Record as undirected bond — order does not matter
+                    bond_undir.add(frozenset((i, j)))
                     continue
 
                 if current_section == "angles":
@@ -116,11 +109,12 @@ class ITP:
 
                 if current_section == "dihedrals":
                     i, j, k, l, funct = [int(words[i]) for i in range(5)]
-                    # Some topologies misuse a second [ dihedrals ] block for impropers
-                    if dihedrals_block_count>=2:
-                        topology.impropers.append([i, j, k, l, funct])
-                    else:
+                    # Determine if this is a proper or improper dihedral
+                    required = {frozenset((i, j)), frozenset((j, k)), frozenset((k, l))}
+                    if required.issubset(bond_undir):
                         topology.dihedrals.append([i, j, k, l, funct])
+                    else:
+                        topology.impropers.append([i, j, k, l, funct])
                     continue
 
                 if current_section == "cmap":
