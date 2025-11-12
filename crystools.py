@@ -1904,7 +1904,7 @@ def countRes(atoms):
 
 def pbc(atoms, a, b, c, isScaled):
     ra, rb, rc, vol = wz(a, b, c)
-    if (isScaled):
+    if (isScaled):#if fractional
         for at in atoms:
             at.x -= math.floor(at.x)
             at.y -= math.floor(at.y)
@@ -2130,7 +2130,7 @@ def getBoxCP2K(fname):
     return a, b, c
 
 
-def getCoordCP2K(fname):
+def getCoordCP2K(fname): #restart/input file
     fi = open(fname, 'r')
     atoms = []
     isCoord = False

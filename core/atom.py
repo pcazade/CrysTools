@@ -112,9 +112,11 @@ class Atom():
         if self.name.strip() in aliases:
             self.el=aliases[self.name.strip()]
         elif (len(self.name.strip()) > 1 and self.name.strip()[1].islower()):
-            self.el = self.name.strip()[0:2]
+            # self.el = self.name.strip()[0:2]
+            self.el = self.name.strip()[0:2].capitalize()
         else:
-            self.el = ' ' + self.name.strip()[0]
+            # self.el = '' + self.name.strip()[0]
+            self.el = self.name.strip()[0].upper()
 
         Z = atomic_numbers[self.el]
 
