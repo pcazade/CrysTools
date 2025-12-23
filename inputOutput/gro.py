@@ -170,3 +170,115 @@ def readGro(
 
 
 
+def writeGro(
+    fname: str,
+    atoms: List[Atom],
+    cell: Cell,
+    is_scaled: bool,
+    title: str = "File written by cryst.py from P.-A. Cazade",
+) -> None:
+    """
+    Write a GROMACS .gro file from a list of atoms and a Cell.
+
+    Parameters
+    ----------
+    fname : str
+        Output .gro filename.
+    atoms : list[Atom]
+        Atoms with coordinates. If `is_scaled` is True, their (x,y,z) are
+        fractional coordinates; otherwise they are Cartesian (Å).
+    cell : Cell
+        Simulation cell. Must have a valid `hmat` in Å.
+    is_scaled : bool
+        If True, treat atom.x/y/z as fractional (u,v,w) and convert using
+        hmat; if False, treat them as Cartesian coordinates in Å.
+    title : str, optional
+        Title line to write at the top of the .gro file.
+    """
+    # hmat is 3x3 with columns = a, b, c (in Å)
+    hmat = np.asarray(cell.hmat, dtype=float)
+    if hmat.shape != (3, 3):
+        raise ValueError("Cell.hmat must be a 3x3 matrix.")
+
+    with open(fname, "w") as fo:
+        # Header
+        fo.write(f"{title}\n")
+        fo.write(f"{len(atoms):d}\n")
+
+        # Atom lines
+        for at in atoms:
+            at.inferAtom()
+
+            # GROMACS supports up to 5 digits for residue & atom index
+            res_idx = at.resIdx % 100000
+            atm_idx = at.idx % 100000
+
+            res_name = at.resName
+            atm_name = at.name
+
+            if is_scaled:
+                # Treat (x,y,z) as fractional (u,v,w)
+                uvw = np.array([at.x, at.y, at.z], dtype=float)
+                # Cartesian in Å: r = H * s   (H columns = a,b,c)
+                xyz = hmat @ uvw
+            else:
+                # Already Cartesian in Å
+                xyz = np.array([at.x, at.y, at.z], dtype=float)
+
+            # Convert Å → nm for .gro
+            x_nm, y_nm, z_nm = xyz * 0.1
+
+            # Standard .gro fixed-width fields
+            #  1–5   : residue number
+            #  6–10  : residue name
+            # 11–15  : atom name
+            # 16–20  : atom number
+            # 21–28  : x (nm)
+            # 29–36  : y (nm)
+            # 37–44  : z (nm)
+            fo.write(
+                "%5d%-5s%5s%5d%8.3f%8.3f%8.3f\n"
+                % (res_idx, res_name, atm_name, atm_idx, x_nm, y_nm, z_nm)
+            )
+
+        # ---- Box line ----
+        # Extract a, b, c as column vectors from hmat (Å)
+        a_vec = hmat[:, 0]
+        b_vec = hmat[:, 1]
+        c_vec = hmat[:, 2]
+
+        # GROMACS triclinic order (all in nm):
+        # xx yy zz xy xz yx yz zx zy
+        xx = a_vec[0]
+        yy = b_vec[1]
+        zz = c_vec[2]
+        xy = a_vec[1]
+        xz = a_vec[2]
+        yx = b_vec[0]
+        yz = b_vec[2]
+        zx = c_vec[0]
+        zy = c_vec[1]
+
+        # Convert Å → nm
+        xx *= 0.1
+        yy *= 0.1
+        zz *= 0.1
+        xy *= 0.1
+        xz *= 0.1
+        yx *= 0.1
+        yz *= 0.1
+        zx *= 0.1
+        zy *= 0.1
+
+        # Check if we need triclinic (any tilt non-zero)
+        tilt_max = max(abs(xy), abs(xz), abs(yx), abs(yz), abs(zx), abs(zy))
+
+        if tilt_max > 1e-6:
+            # triclinic: 9 values
+            fo.write(
+                "%10.5f%10.5f%10.5f%10.5f%10.5f%10.5f%10.5f%10.5f%10.5f\n"
+                % (xx, yy, zz, xy, xz, yx, yz, zx, zy)
+            )
+        else:
+            # orthorhombic: only box lengths
+            fo.write("%10.5f%10.5f%10.5f\n" % (xx, yy, zz))
