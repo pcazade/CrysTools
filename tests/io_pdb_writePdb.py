@@ -1,5 +1,4 @@
 from inputOutput.pdb import *
-import numpy as np
 
 
 
@@ -13,7 +12,7 @@ atoms = [
 ]
 
 # Write to file
-out_file = "test_cell_based.pdb"
+out_file = "writePdbOutput.pdb"
 writePdb(out_file, atoms, cell, spg="P 21 21 21")
 
 # Print confirmation + file preview

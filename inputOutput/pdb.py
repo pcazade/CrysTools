@@ -1,9 +1,6 @@
 # === Refactor for crystools.py: Read Write PDB file - OOP methods ===
 from __future__ import annotations
-import re
-from dataclasses import dataclass, field  # only needed here if you keep local Atom/Topol; otherwise remove
-from typing import List, Optional, Tuple
-from core.topology import Topology
+from typing import List, Tuple
 from core.atom import Atom
 from core.cell import Cell
 import math
