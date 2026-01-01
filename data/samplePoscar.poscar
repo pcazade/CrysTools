@@ -1,0 +1,11 @@
+Si slab example
+1.0
+5.0 0.0 0.0
+0.0 5.0 0.0
+0.0 0.0 20.0
+Si
+2
+Selective dynamics
+Direct
+0.0 0.0 0.1   T T F
+0.5 0.5 0.9   F F F
